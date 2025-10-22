@@ -2,6 +2,14 @@ using UnityEngine;
 using System.Net.Sockets;
 using System.Net;
 using System.Threading;
+using NUnit.Framework;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization;
+using System;
+
+
 
 public class UDPSocket : MonoBehaviour
 {
@@ -49,12 +57,19 @@ public class UDPSocket : MonoBehaviour
             if (receivedDataLength > 0)
             {
                 string receivedText = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
-                Debug.Log("Received from client: " + receivedText);
 
-                string ping = "Hello from server";
-                byte[] dataPing = new byte[1024];
-                dataPing = System.Text.Encoding.UTF8.GetBytes(ping);
-                serverSocket.SendTo(dataPing, localEndPoint);
+                DTO trainerDeserialized = DeserializeData(bufferData);
+
+                Debug.Log("Trainer Name: " + trainerDeserialized.playerName);
+                Debug.Log("Trainer level: " + trainerDeserialized.level);
+                Debug.Log("Owned Pokemons: " + trainerDeserialized.ownedPokemons[0].name + ", " + trainerDeserialized.ownedPokemons[1].name);
+
+                cancelReceive = true;
+
+                //string ping = "Hello from server";
+                //byte[] dataPing = new byte[1024];
+                //dataPing = System.Text.Encoding.UTF8.GetBytes(ping);
+                //serverSocket.SendTo(dataPing, localEndPoint);
 
 
             }
@@ -69,28 +84,102 @@ public class UDPSocket : MonoBehaviour
         IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, 9050);
 
         // Send Information
-        string text = "Hello from Client";
-        byte[] data = new byte[1024];
-        data = System.Text.Encoding.UTF8.GetBytes(text);
-        clientSocket.SendTo(data, serverEndPoint);
+
+        DTO trainerToSerialize = CreateTrainer();
+
+        byte[] dataTrainer = SerializeData(trainerToSerialize);
+        clientSocket.SendTo(dataTrainer, serverEndPoint);
+
+        //string text = "Hello from Client";
+        //byte[] data = new byte[1024];
+        //data = System.Text.Encoding.UTF8.GetBytes(text);
+        //clientSocket.SendTo(data, serverEndPoint);
 
         byte[] bufferData = new byte[4096];
-        while (!cancelReceive)
-        {
-            EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-            int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
-            if (receivedDataLength > 0)
-            {
-                string receivedText = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
-                Debug.Log("Received from server: " + receivedText);
+        //while (!cancelReceive)
+        //{
+        //    EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+        //    int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
+        //    if (receivedDataLength > 0)
+        //    {
+        //        string receivedText = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
+        //        Debug.Log("Received from server: " + receivedText);
 
-                string replyText = "Hello from client";
-                byte[] replyData = System.Text.Encoding.UTF8.GetBytes(replyText);
-                clientSocket.SendTo(replyData, serverEndPoint);
+        //        string replyText = "Hello from client";
+        //        byte[] replyData = System.Text.Encoding.UTF8.GetBytes(replyText);
+        //        clientSocket.SendTo(replyData, serverEndPoint);
 
-            }
+        //    }
 
-            Thread.Sleep(10);
-        }
+        //    Thread.Sleep(10);
+        //}
     }
+
+    public DTO CreateTrainer()
+    {
+        DTO trainer = new DTO();
+        trainer.ownedPokemons = new List<Pokemon>();
+
+        trainer.playerName = "Juan Alberto";
+        trainer.level = 50;
+
+        Pokemon firstPokemon = new Pokemon();
+        firstPokemon.name = "Charizard";
+
+        Pokemon secondPokemon = new Pokemon();
+        secondPokemon.name = "Pikachu";
+
+        trainer.ownedPokemons.Add(firstPokemon);
+        trainer.ownedPokemons.Add(secondPokemon);
+
+        return trainer;
+    }
+
+    public byte[] SerializeData(DTO objectToSerialize)
+    {
+        MemoryStream stream = new MemoryStream();
+        BinaryFormatter formatter = new BinaryFormatter();
+        try
+        {
+            formatter.Serialize(stream, objectToSerialize);
+        }
+        catch (SerializationException e)
+        {
+            Debug.Log("Serialization Failed : " + e.Message);
+        }
+        byte[] objectAsBytes = stream.ToArray();
+        stream.Close();
+        return objectAsBytes;
+    }
+
+    public DTO DeserializeData(byte[] objectAsBytes)
+    {
+        DTO objectThatWasDeserialized = new DTO();
+        MemoryStream stream = new MemoryStream();
+        stream.Write(objectAsBytes, 0, objectAsBytes.Length);
+        stream.Seek(0, SeekOrigin.Begin);
+        BinaryFormatter formatter = new BinaryFormatter();
+        try
+        {
+            objectThatWasDeserialized = (DTO)formatter.Deserialize(stream);
+        }
+        catch (SerializationException e)
+        {
+            Debug.Log("Deserialization Failed : " + e.Message);
+        }
+        stream.Close();
+        return objectThatWasDeserialized;
+    }
+}
+
+public class Pokemon
+{
+    public string name;
+}
+
+public struct DTO
+{
+    public string playerName;
+    public int level;
+    public List<Pokemon> ownedPokemons;
 }
