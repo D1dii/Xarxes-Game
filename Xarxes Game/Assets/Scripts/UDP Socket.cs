@@ -141,7 +141,15 @@ public class UDPSocket : MonoBehaviour
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
-            formatter.Serialize(stream, objectToSerialize);
+            formatter.Serialize(stream, objectToSerialize.playerName);
+            formatter.Serialize(stream, objectToSerialize.level);
+
+            formatter.Serialize(stream, objectToSerialize.ownedPokemons.Count);
+
+            foreach (Pokemon pokemon in objectToSerialize.ownedPokemons)
+            {
+                formatter.Serialize(stream, pokemon.name);
+            }
         }
         catch (SerializationException e)
         {
@@ -161,7 +169,19 @@ public class UDPSocket : MonoBehaviour
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
-            objectThatWasDeserialized = (DTO)formatter.Deserialize(stream);
+            objectThatWasDeserialized.playerName = (string)formatter.Deserialize(stream);
+            objectThatWasDeserialized.level = (int)formatter.Deserialize(stream);
+
+            int pokemonCount = (int)formatter.Deserialize(stream);
+
+            objectThatWasDeserialized.ownedPokemons = new List<Pokemon>();
+
+            for (int i = 0; i < pokemonCount; i++)
+            {
+                Pokemon pokemon = new Pokemon();
+                pokemon.name = (string)formatter.Deserialize(stream);
+                objectThatWasDeserialized.ownedPokemons.Add(pokemon);
+            }
         }
         catch (SerializationException e)
         {
