@@ -1,26 +1,32 @@
-using UnityEngine;
-using System.Net.Sockets;
-using System.Net;
-using System.Threading;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.Serialization;
-using System;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Threading;
+using Unity.VisualScripting;
+using UnityEngine;
+using static UnityEngine.GraphicsBuffer;
 
 
 public struct NetworkTransform
 {
     public int id;
     public Vector3 position;
-    public Vector3 rotation;
+    public Quaternion rotation;
     public Vector3 scale;
 }
 
 
 public class NetworkManager : MonoBehaviour
 {
+
+    public enum NetworkRole { Server, Client, Host }
+    public NetworkRole role = NetworkRole.Host;
 
     public static NetworkManager instance;
 
@@ -29,13 +35,15 @@ public class NetworkManager : MonoBehaviour
 
     public List<NetworkObject> registeredObjects;
 
-    bool cancelReceive = false;
+    public bool cancelReceive = false;
+    public int port = 9050;
 
     public void Awake()
     {
         if (instance == null)
         {
             instance = this;
+            DontDestroyOnLoad(gameObject);
             registeredObjects = new List<NetworkObject>();
         }
         else
@@ -47,9 +55,23 @@ public class NetworkManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()
     {
-        clientThread = new Thread(ClientProcess);
-        serverThread = new Thread(ServerProcess);
-        serverThread.Start();
+        if (role == NetworkRole.Server)
+        {
+            serverThread = new Thread(ServerProcess);
+            serverThread.Start();
+        }
+        else if (role == NetworkRole.Client)
+        {
+            clientThread = new Thread(ClientProcess);
+            clientThread.Start();
+        }
+        else if (role == NetworkRole.Host)
+        {
+            serverThread = new Thread(ServerProcess);
+            clientThread = new Thread(ClientProcess);
+            serverThread.Start();
+            clientThread.Start();
+        }
     }
 
     // Update is called once per frame
@@ -61,47 +83,54 @@ public class NetworkManager : MonoBehaviour
     public void OnDestroy()
     {
         cancelReceive = true;
-        serverThread.Join();
-        clientThread.Join();
+        if (serverThread != null && serverThread.IsAlive)
+            serverThread.Abort();
+        if (clientThread != null && clientThread.IsAlive)
+            clientThread.Abort();
+        
     }
 
     public void RegisterObject(NetworkObject netObject)
     {
         registeredObjects.Add(netObject);
+        //netObject.id = registeredObjects.Count() - 1;
     }
 
     public void ServerProcess()
     {
         // Create Server Socket
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        EndPoint localEndPoint = new IPEndPoint(IPAddress.Loopback, 9050);
+        IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, port);
         serverSocket.Bind(localEndPoint);
-        clientThread.Start();
+        
 
 
 
         byte[] bufferData = new byte[4096];
         while (!cancelReceive)
         {
-
-            int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref localEndPoint);
+            EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+            int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref sender);
             if (receivedDataLength > 0)
             {
-                DeserializeData(bufferData);
+                DeserializeData(bufferData, receivedDataLength);
 
                 byte[] transformData = SerializeData();
-                serverSocket.SendTo(transformData, localEndPoint);
+                serverSocket.SendTo(transformData, sender);
+
+                
 
             }
             Thread.Sleep(33);
         }
+        serverSocket.Close();
 
     }
 
     public void ClientProcess()
     {
         Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, 9050);
+        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, port);
 
         // Send Information
 
@@ -116,12 +145,12 @@ public class NetworkManager : MonoBehaviour
             int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
             if (receivedDataLength > 0)
             {
-                DeserializeData(bufferData);
+                DeserializeData(bufferData, receivedDataLength);
             }
 
             Thread.Sleep(33);
         }
-
+        clientSocket.Close();
     }
 
    
@@ -132,9 +161,13 @@ public class NetworkManager : MonoBehaviour
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
-            formatter.Serialize(stream, registeredObjects.Count);
 
-            foreach (NetworkObject netObject in registeredObjects)
+            List<NetworkObject> toSend;
+            toSend = registeredObjects.Where(o => o.isLocalPlayer).ToList();
+
+            formatter.Serialize(stream, toSend.Count);
+
+            foreach (NetworkObject netObject in toSend)
             {
                 formatter.Serialize(stream, netObject.id);
                 formatter.Serialize(stream, netObject.netTransform.position.x);
@@ -143,6 +176,7 @@ public class NetworkManager : MonoBehaviour
                 formatter.Serialize(stream, netObject.netTransform.rotation.x);
                 formatter.Serialize(stream, netObject.netTransform.rotation.y);
                 formatter.Serialize(stream, netObject.netTransform.rotation.z);
+                formatter.Serialize(stream, netObject.netTransform.rotation.w);
                 formatter.Serialize(stream, netObject.netTransform.scale.x);
                 formatter.Serialize(stream, netObject.netTransform.scale.y);
                 formatter.Serialize(stream, netObject.netTransform.scale.z);
@@ -158,12 +192,10 @@ public class NetworkManager : MonoBehaviour
         return objectAsBytes;
     }
 
-    public void DeserializeData(byte[] objectAsBytes)
+    public void DeserializeData(byte[] objectAsBytes, int length)
     {
         
-        MemoryStream stream = new MemoryStream();
-        stream.Write(objectAsBytes, 0, objectAsBytes.Length);
-        stream.Seek(0, SeekOrigin.Begin);
+        MemoryStream stream = new MemoryStream(objectAsBytes, 0, length);
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
@@ -180,12 +212,27 @@ public class NetworkManager : MonoBehaviour
                 transformDeserialized.rotation.x = (float)formatter.Deserialize(stream);
                 transformDeserialized.rotation.y = (float)formatter.Deserialize(stream);
                 transformDeserialized.rotation.z = (float)formatter.Deserialize(stream);
+                transformDeserialized.rotation.w = (float)formatter.Deserialize(stream);
                 transformDeserialized.scale.x = (float)formatter.Deserialize(stream);
                 transformDeserialized.scale.y = (float)formatter.Deserialize(stream);
                 transformDeserialized.scale.z = (float)formatter.Deserialize(stream);
 
-                registeredObjects[i].UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                NetworkObject target = null;
+                target = registeredObjects.FirstOrDefault(o => o.id == transformDeserialized.id);
 
+                if (target != null)
+                {
+                    // No queremos sobrescribir datos locales del propietario; UpdateTransform actualiza target* para interpolar
+                    if (!target.isLocalPlayer)
+                    {
+                        target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                    }
+                }
+                else
+                {
+                    // Opcional: registrar log si no se encuentra el id
+                    Debug.LogWarning($"NetworkManager: recibido transform para id={transformDeserialized.id} pero no existe localmente.");
+                }
             }
 
         }
