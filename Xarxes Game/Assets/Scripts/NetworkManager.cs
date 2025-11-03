@@ -38,6 +38,8 @@ public class NetworkManager : MonoBehaviour
     public bool cancelReceive = false;
     public int port = 9050;
 
+    public string serverIP = "127.0.0.1";
+
     public void Awake()
     {
         if (instance == null)
@@ -130,7 +132,8 @@ public class NetworkManager : MonoBehaviour
     public void ClientProcess()
     {
         Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, port);
+        IPAddress ip = IPAddress.Parse(serverIP);
+        IPEndPoint serverEndPoint = new IPEndPoint(ip, port);
 
         // Send Information
 

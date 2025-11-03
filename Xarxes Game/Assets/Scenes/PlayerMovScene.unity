@@ -466,6 +466,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 1609253122}
   jumpHeight: 2
   gravity: -9.81
+  playerCamera: {fileID: 1609253119}
 --- !u!114 &398748399
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -981,6 +982,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 1294201967}
   jumpHeight: 2
   gravity: -9.81
+  playerCamera: {fileID: 1294201966}
 --- !u!143 &2058498098
 CharacterController:
   m_ObjectHideFlags: 0
