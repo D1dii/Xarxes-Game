@@ -22,12 +22,26 @@ public class MovementPlayer : MonoBehaviour
     private bool isGrounded;
 
     private NetworkObject networkObject;
+    public GameObject playerCamera;
 
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
         inputActions = new PlayerInputActions();
         networkObject = GetComponent<NetworkObject>();
+    }
+
+
+    private void Start()
+    {
+        if (networkObject.isLocalPlayer)
+        {
+            playerCamera.SetActive(true);
+        }
+        else
+        {
+            playerCamera.SetActive(false);
+        }
     }
 
     private void OnEnable()
