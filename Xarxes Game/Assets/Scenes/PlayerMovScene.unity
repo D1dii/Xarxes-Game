@@ -152,6 +152,7 @@ MonoBehaviour:
   registeredObjects: []
   cancelReceive: 0
   port: 9050
+  serverIP: 192.168.68.108
 --- !u!4 &284878146
 Transform:
   m_ObjectHideFlags: 0
