@@ -21,20 +21,27 @@ public class MovementPlayer : MonoBehaviour
     private Vector3 velocity;
     private bool isGrounded;
 
+    private NetworkObject networkObject;
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
         inputActions = new PlayerInputActions();
+        networkObject = GetComponent<NetworkObject>();
     }
 
     private void OnEnable()
     {
-        inputActions.Player.Enable();
+        if (networkObject.isLocalPlayer)
+        {
+            inputActions.Player.Enable();
 
-        inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
+            inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
+            inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
 
-        inputActions.Player.Jump.performed += ctx => Jump();
+            inputActions.Player.Jump.performed += ctx => Jump();
+        }
+        
     }
 
     private void OnDisable()
@@ -44,7 +51,11 @@ public class MovementPlayer : MonoBehaviour
 
     void Update()
     {
-        MovePlayer();
+        if (networkObject.isLocalPlayer)
+        {
+            MovePlayer();
+        }
+        
         ApplyGravity();
     }
 
