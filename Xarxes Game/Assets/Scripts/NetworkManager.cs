@@ -38,7 +38,7 @@ public class NetworkManager : MonoBehaviour
     public bool cancelReceive = false;
     public int port = 9050;
 
-    public string serverIP = "127.0.0.1";
+
 
     public void Awake()
     {
@@ -89,59 +89,40 @@ public class NetworkManager : MonoBehaviour
             serverThread.Abort();
         if (clientThread != null && clientThread.IsAlive)
             clientThread.Abort();
-
+        
     }
 
     public void RegisterObject(NetworkObject netObject)
     {
         registeredObjects.Add(netObject);
-        // Atención: aquí no se asigna un ID "global" sincronizado entre máquinas.
+        //netObject.id = registeredObjects.Count() - 1;
     }
 
     public void ServerProcess()
     {
+        // Create Server Socket
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, port);
-        try
-        {
-            serverSocket.Bind(localEndPoint);
-            Debug.Log($"[Server] escuchando en {localEndPoint}");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("[Server] Bind fallo: " + ex);
-            return;
-        }
+        serverSocket.Bind(localEndPoint);
+        
+
+
 
         byte[] bufferData = new byte[4096];
         while (!cancelReceive)
         {
             EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-            try
+            int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref sender);
+            if (receivedDataLength > 0)
             {
-                int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref sender);
-                if (receivedDataLength > 0)
-                {
-                    Debug.Log($"[Server] recibido {receivedDataLength} bytes desde {sender}");
-                    DeserializeData(bufferData, receivedDataLength);
+                DeserializeData(bufferData, receivedDataLength);
 
-                    byte[] transformData = SerializeData();
-                    if (transformData != null && transformData.Length > 0)
-                    {
-                        serverSocket.SendTo(transformData, sender);
-                        Debug.Log($"[Server] enviado {transformData.Length} bytes a {sender}");
-                    }
-                }
-            }
-            catch (SocketException se)
-            {
-                Debug.LogWarning($"[Server] SocketException: {se.SocketErrorCode} - {se.Message}");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[Server] Exception: {e}");
-            }
+                byte[] transformData = SerializeData();
+                serverSocket.SendTo(transformData, sender);
 
+                
+
+            }
             Thread.Sleep(33);
         }
         serverSocket.Close();
@@ -150,90 +131,31 @@ public class NetworkManager : MonoBehaviour
 
     public void ClientProcess()
     {
-        try
+        Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, port);
+
+        // Send Information
+
+        byte[] bufferData = new byte[4096];
+
+        while (!cancelReceive)
         {
-            Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            byte[] transformData = SerializeData();
+            clientSocket.SendTo(transformData, serverEndPoint);
 
-            // Evitar que Windows convierta ICMP "port unreachable" en excepción que cierra el socket
-            try
+            EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+            int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
+            if (receivedDataLength > 0)
             {
-                const int SIO_UDP_CONNRESET = -1744830452;
-                clientSocket.IOControl(SIO_UDP_CONNRESET, new byte[] { 0 }, null);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning("[Client] IOControl SIO_UDP_CONNRESET no disponible: " + ex.Message);
+                DeserializeData(bufferData, receivedDataLength);
             }
 
-            IPAddress ip;
-            try
-            {
-                ip = IPAddress.Parse(serverIP);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError("[Client] serverIP inválida: " + ex.Message);
-                return;
-            }
-            IPEndPoint serverEndPoint = new IPEndPoint(ip, port);
-            Debug.Log($"[Client] intentará conectar a {serverEndPoint}");
-
-            byte[] bufferData = new byte[4096];
-
-            while (!cancelReceive)
-            {
-                byte[] transformData = SerializeData();
-                try
-                {
-                    if (transformData != null && transformData.Length > 0)
-                    {
-                        clientSocket.SendTo(transformData, serverEndPoint);
-                        Debug.Log($"[Client] enviado {transformData.Length} bytes a {serverEndPoint}");
-                    }
-                }
-                catch (SocketException se)
-                {
-                    Debug.LogWarning("[Client] SendTo fallo: " + se.Message);
-                }
-
-                EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-                try
-                {
-                    int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
-                    if (receivedDataLength > 0)
-                    {
-                        Debug.Log($"[Client] recibido {receivedDataLength} bytes desde {sender}");
-                        DeserializeData(bufferData, receivedDataLength);
-                    }
-                }
-                catch (SocketException se)
-                {
-                    if (se.SocketErrorCode == SocketError.ConnectionReset)
-                    {
-                        // Ignorar ICMP Port Unreachable (10054) y continuar
-                        Debug.LogWarning("[Client] ICMP Port Unreachable recibido y ignorado.");
-                    }
-                    else
-                    {
-                        Debug.LogError("[Client] ReceiveFrom fallo: " + se);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError("[Client] Exception en ReceiveFrom: " + ex);
-                }
-
-                Thread.Sleep(33);
-            }
-            clientSocket.Close();
+            Thread.Sleep(33);
         }
-        catch (Exception ex)
-        {
-            Debug.LogError("[Client] ClientProcess fallo: " + ex);
-        }
+        clientSocket.Close();
     }
 
-
+   
 
     public byte[] SerializeData()
     {
@@ -242,34 +164,24 @@ public class NetworkManager : MonoBehaviour
         try
         {
 
-            List<NetworkObject> toSend = registeredObjects.Where(o => o.isLocalPlayer).ToList();
+            List<NetworkObject> toSend;
+            toSend = registeredObjects.Where(o => o.isLocalPlayer).ToList();
 
-            // Logging para depuración
-            if (toSend.Count == 0)
-            {
-                // enviamos 0 para que el receptor sepa que no hay transforms
-                formatter.Serialize(stream, 0);
-                Debug.Log("[SerializeData] no hay objetos locales para enviar.");
-            }
-            else
-            {
-                Debug.Log($"[SerializeData] enviando {toSend.Count} objetos. ids: {string.Join(",", toSend.Select(o => o.id.ToString()))}");
-                formatter.Serialize(stream, toSend.Count);
+            formatter.Serialize(stream, toSend.Count);
 
-                foreach (NetworkObject netObject in toSend)
-                {
-                    formatter.Serialize(stream, netObject.id);
-                    formatter.Serialize(stream, netObject.netTransform.position.x);
-                    formatter.Serialize(stream, netObject.netTransform.position.y);
-                    formatter.Serialize(stream, netObject.netTransform.position.z);
-                    formatter.Serialize(stream, netObject.netTransform.rotation.x);
-                    formatter.Serialize(stream, netObject.netTransform.rotation.y);
-                    formatter.Serialize(stream, netObject.netTransform.rotation.z);
-                    formatter.Serialize(stream, netObject.netTransform.rotation.w);
-                    formatter.Serialize(stream, netObject.netTransform.scale.x);
-                    formatter.Serialize(stream, netObject.netTransform.scale.y);
-                    formatter.Serialize(stream, netObject.netTransform.scale.z);
-                }
+            foreach (NetworkObject netObject in toSend)
+            {
+                formatter.Serialize(stream, netObject.id);
+                formatter.Serialize(stream, netObject.netTransform.position.x);
+                formatter.Serialize(stream, netObject.netTransform.position.y);
+                formatter.Serialize(stream, netObject.netTransform.position.z);
+                formatter.Serialize(stream, netObject.netTransform.rotation.x);
+                formatter.Serialize(stream, netObject.netTransform.rotation.y);
+                formatter.Serialize(stream, netObject.netTransform.rotation.z);
+                formatter.Serialize(stream, netObject.netTransform.rotation.w);
+                formatter.Serialize(stream, netObject.netTransform.scale.x);
+                formatter.Serialize(stream, netObject.netTransform.scale.y);
+                formatter.Serialize(stream, netObject.netTransform.scale.z);
             }
 
         }
@@ -284,14 +196,13 @@ public class NetworkManager : MonoBehaviour
 
     public void DeserializeData(byte[] objectAsBytes, int length)
     {
-
+        
         MemoryStream stream = new MemoryStream(objectAsBytes, 0, length);
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
 
             int transformCount = (int)formatter.Deserialize(stream);
-            Debug.Log($"[DeserializeData] recibidos {transformCount} transforms");
 
             for (int i = 0; i < transformCount; i++)
             {
@@ -308,13 +219,12 @@ public class NetworkManager : MonoBehaviour
                 transformDeserialized.scale.y = (float)formatter.Deserialize(stream);
                 transformDeserialized.scale.z = (float)formatter.Deserialize(stream);
 
-                Debug.Log($"[DeserializeData] transform id={transformDeserialized.id} pos={transformDeserialized.position}");
-
                 NetworkObject target = null;
                 target = registeredObjects.FirstOrDefault(o => o.id == transformDeserialized.id);
 
                 if (target != null)
                 {
+                    // No queremos sobrescribir datos locales del propietario; UpdateTransform actualiza target* para interpolar
                     if (!target.isLocalPlayer)
                     {
                         target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
@@ -322,6 +232,7 @@ public class NetworkManager : MonoBehaviour
                 }
                 else
                 {
+                    // Opcional: registrar log si no se encuentra el id
                     Debug.LogWarning($"NetworkManager: recibido transform para id={transformDeserialized.id} pero no existe localmente.");
                 }
             }

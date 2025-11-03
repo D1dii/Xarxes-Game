@@ -152,7 +152,6 @@ MonoBehaviour:
   registeredObjects: []
   cancelReceive: 0
   port: 9050
-  serverIP: 127.0.0.1
 --- !u!4 &284878146
 Transform:
   m_ObjectHideFlags: 0
@@ -180,7 +179,7 @@ GameObject:
   - component: {fileID: 345810160}
   - component: {fileID: 345810159}
   - component: {fileID: 345810158}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Plane
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -293,7 +292,6 @@ GameObject:
   - component: {fileID: 398748395}
   - component: {fileID: 398748394}
   - component: {fileID: 398748393}
-  - component: {fileID: 398748392}
   - component: {fileID: 398748398}
   - component: {fileID: 398748399}
   m_Layer: 0
@@ -303,31 +301,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!143 &398748392
-CharacterController:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 398748391}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 2
-  m_Radius: 0.5
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &398748393
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -465,8 +438,11 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSmoothTime: 0.1
   cameraTransform: {fileID: 1609253122}
-  jumpHeight: 2
-  gravity: -9.81
+  jumpForce: 5
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 64
+  groundCheckDistance: 5
   playerCamera: {fileID: 1609253119}
 --- !u!114 &398748399
 MonoBehaviour:
@@ -939,7 +915,6 @@ GameObject:
   - component: {fileID: 2058498101}
   - component: {fileID: 2058498100}
   - component: {fileID: 2058498099}
-  - component: {fileID: 2058498098}
   - component: {fileID: 2058498097}
   - component: {fileID: 2058498096}
   m_Layer: 0
@@ -981,34 +956,12 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSmoothTime: 0.1
   cameraTransform: {fileID: 1294201967}
-  jumpHeight: 2
-  gravity: -9.81
+  jumpForce: 5
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 64
+  groundCheckDistance: 5
   playerCamera: {fileID: 1294201966}
---- !u!143 &2058498098
-CharacterController:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2058498095}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Height: 2
-  m_Radius: 0.5
-  m_SlopeLimit: 45
-  m_StepOffset: 0.3
-  m_SkinWidth: 0.08
-  m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &2058498099
 Rigidbody:
   m_ObjectHideFlags: 0
