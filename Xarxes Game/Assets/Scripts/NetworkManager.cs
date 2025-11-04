@@ -86,9 +86,9 @@ public class NetworkManager : MonoBehaviour
     {
         cancelReceive = true;
         if (serverThread != null && serverThread.IsAlive)
-            serverThread.Abort();
+            serverThread.Join();
         if (clientThread != null && clientThread.IsAlive)
-            clientThread.Abort();
+            clientThread.Join();
 
     }
 
