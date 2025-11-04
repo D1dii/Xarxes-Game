@@ -160,11 +160,11 @@ MonoBehaviour:
   moveSpeed: 5
   rotationSmoothTime: 0.1
   cameraTransform: {fileID: 8662116739475153511}
-  jumpForce: 5
+  jumpForce: 7.5
   groundMask:
     serializedVersion: 2
-    m_Bits: 0
-  groundCheckDistance: 0.3
+    m_Bits: 64
+  groundCheckDistance: 2
   playerCamera: {fileID: 7978086273758191787}
 --- !u!114 &7788223902430760058
 MonoBehaviour:
@@ -349,7 +349,7 @@ MonoBehaviour:
   target: {fileID: 6092889653738426005}
   distance: 7.5
   height: 5
-  sensitivityX: 120
-  sensitivityY: 120
+  sensitivityX: 87.2
+  sensitivityY: 90.4
   minY: -30
   maxY: 70
