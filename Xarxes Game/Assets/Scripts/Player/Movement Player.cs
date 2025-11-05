@@ -103,20 +103,21 @@ public class PlayerMovementRB : MonoBehaviour
             // Si no hay input, solo dejamos la velocidad vertical (ca?da o salto)
             rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
             animatotor.SetBool("Moving", false);
-            if(rb.linearVelocity.y > 0)
-            {
-                animatotor.SetBool("Jumping", true);
-                animatotor.SetBool("Falling", false);
-            }else if (rb.linearVelocity.y < 0)
-            {
-                animatotor.SetBool("Jumping", false);
-                animatotor.SetBool("Falling", true);
-            }
-            else
-            {
-                animatotor.SetBool("Jumping", false);
-                animatotor.SetBool("Falling", false);
-            }
+           
+        }
+        if (rb.linearVelocity.y > 0)
+        {
+            animatotor.SetBool("Jumping", true);
+            animatotor.SetBool("Falling", false);
+        }
+        else if (rb.linearVelocity.y < 0)
+        {
+            animatotor.SetBool("Jumping", false);
+            animatotor.SetBool("Falling", true);
+        }
+        else
+        {
+            animatotor.SetBool("Falling", false);
         }
     }
 
