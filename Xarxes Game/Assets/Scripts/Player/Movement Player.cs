@@ -4,6 +4,8 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerMovementRB : MonoBehaviour
 {
+    public Animator animatotor;
+        
     [Header("Movimiento")]
     public float moveSpeed = 5f;
     public float rotationSmoothTime = 0.1f;
@@ -94,11 +96,27 @@ public class PlayerMovementRB : MonoBehaviour
 
             // Solo modificamos la velocidad horizontal, mantenemos la vertical
             rb.linearVelocity = new Vector3(targetVelocity.x, rb.linearVelocity.y, targetVelocity.z);
+            animatotor.SetBool("Moving", true);
         }
         else
         {
             // Si no hay input, solo dejamos la velocidad vertical (ca?da o salto)
             rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+            animatotor.SetBool("Moving", false);
+            if(rb.linearVelocity.y > 0)
+            {
+                animatotor.SetBool("Jumping", true);
+                animatotor.SetBool("Falling", false);
+            }else if (rb.linearVelocity.y < 0)
+            {
+                animatotor.SetBool("Jumping", false);
+                animatotor.SetBool("Falling", true);
+            }
+            else
+            {
+                animatotor.SetBool("Jumping", false);
+                animatotor.SetBool("Falling", false);
+            }
         }
     }
 
@@ -106,14 +124,15 @@ public class PlayerMovementRB : MonoBehaviour
     {
         // Comprobamos si est? tocando el suelo
         isGrounded = Physics.Raycast(transform.position + Vector3.up * 0.1f, Vector3.down, groundCheckDistance, groundMask);
-
+       
         if (jumpPressed && isGrounded)
         {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z); // reset vertical
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);          
+            
         }
-
         jumpPressed = false; // reseteamos el estado del salto
+       
     }
 
     void OnDrawGizmosSelected()
