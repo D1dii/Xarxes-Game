@@ -242,6 +242,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player 1
       objectReference: {fileID: 0}
+    - target: {fileID: 25807087172577278, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1677195335502014788, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_Mesh
       value: 
@@ -1351,6 +1355,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player 2
       objectReference: {fileID: 0}
+    - target: {fileID: 25807087172577278, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6092889653738426005, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_LocalPosition.x
       value: 7.7
@@ -1980,55 +1988,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &2030810714
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2030810716}
-  - component: {fileID: 2030810715}
-  m_Layer: 0
-  m_Name: NetworkManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2030810715
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2030810714}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 214f1a404134acf438cc0916b98285e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NetworkManager
-  role: 2
-  registeredObjects: []
-  cancelReceive: 0
-  port: 9050
-  serverIP: 127.0.0.1
---- !u!4 &2030810716
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2030810714}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.5277, y: 0, z: -10.53735}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2088316252
 GameObject:
   m_ObjectHideFlags: 0
@@ -2162,4 +2121,3 @@ SceneRoots:
   - {fileID: 264728785}
   - {fileID: 1478012754}
   - {fileID: 758992118}
-  - {fileID: 2030810716}

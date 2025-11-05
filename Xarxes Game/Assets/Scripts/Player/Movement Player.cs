@@ -40,10 +40,16 @@ public class PlayerMovementRB : MonoBehaviour
         if (netObj.isLocalPlayer)
         {
             playerCamera.SetActive(true);
+
         }
         else
         {
             playerCamera.SetActive(false);
+            rb.isKinematic = true;         
+            rb.useGravity = false;         
+            rb.detectCollisions = false;   
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
     }
 

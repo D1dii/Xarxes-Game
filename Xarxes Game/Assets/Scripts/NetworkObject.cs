@@ -32,7 +32,7 @@ public class NetworkObject : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()
     {
-        NetworkManager.instance.RegisterObject(this);
+        //NetworkManager.instance.RegisterObject(this);
     }
 
     // Update is called once per frame

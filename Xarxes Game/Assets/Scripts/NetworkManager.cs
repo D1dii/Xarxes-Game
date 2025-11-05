@@ -9,7 +9,9 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 using Unity.VisualScripting;
+using UnityEditor.SearchService;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using static UnityEngine.GraphicsBuffer;
 
 
@@ -34,11 +36,19 @@ public class NetworkManager : MonoBehaviour
     Thread clientThread;
 
     public List<NetworkObject> registeredObjects;
+    private Dictionary<int, NetworkObject> objectsById = new Dictionary<int, NetworkObject>();
+    private int nextObjectId = 0;
+    private bool requestingId = false;
+    public int assignedIdFromServer = -1;
+
+    private readonly Queue<Action> mainThreadActions = new Queue<Action>();
 
     public bool cancelReceive = false;
     public int port = 9050;
 
     public string serverIP = "127.0.0.1";
+
+    public GameObject playerPrefab;
 
     public void Awake()
     {
@@ -54,8 +64,41 @@ public class NetworkManager : MonoBehaviour
         }
     }
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    public void Start()
+    public void Update()
+    {
+        // Aplicar id asignado por servidor en hilo principal (sin tocar transforms)
+        if (assignedIdFromServer != -1)
+        {
+            int idToAssign = assignedIdFromServer;
+            assignedIdFromServer = -1;
+
+            var target = registeredObjects.FirstOrDefault(o => o.isLocalPlayer && o.id == 0);
+            if (target != null)
+            {
+                AssignIdToLocalObject(target, idToAssign);
+                Debug.Log($"[NetworkManager] Applied assigned id {idToAssign} to local object on main thread.");
+            }
+            else
+            {
+                Debug.LogWarning("[NetworkManager] Received assigned id but no local object without id found.");
+            }
+        }
+
+        while (mainThreadActions.Count > 0)
+        {
+            try
+            {
+                var action = mainThreadActions.Dequeue();
+                action?.Invoke();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetworkManager] Error ejecutando acción en main thread: " + e);
+            }
+        }
+    }
+
+    public void InitiateManager()
     {
         if (role == NetworkRole.Server)
         {
@@ -66,6 +109,7 @@ public class NetworkManager : MonoBehaviour
         {
             clientThread = new Thread(ClientProcess);
             clientThread.Start();
+            InstantiateNewPlayer();
         }
         else if (role == NetworkRole.Host)
         {
@@ -73,13 +117,50 @@ public class NetworkManager : MonoBehaviour
             clientThread = new Thread(ClientProcess);
             serverThread.Start();
             clientThread.Start();
+            InstantiateNewPlayer();
         }
     }
 
-    // Update is called once per frame
-    public void Update()
+    public void JoinAsHost()
     {
+        role = NetworkRole.Host;
+        StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+    }
 
+    public void JoinAsClient()
+    {
+        role = NetworkRole.Client;
+        StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+    }
+
+    public System.Collections.IEnumerator LoadSceneAndInitiate(string sceneName, bool async)
+    {
+        if (async)
+        {
+            AsyncOperation op = SceneManager.LoadSceneAsync(sceneName);
+            if (op == null)
+            {
+                yield break;
+            }
+            while (!op.isDone)
+                yield return null;
+        }
+        else
+        {
+            try
+            {
+                SceneManager.LoadScene(sceneName);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[NetworkManager] Excepción LoadScene('{sceneName}'): {e}");
+                yield break;
+            }
+            yield return null;
+        }
+
+        
+        InitiateManager();
     }
 
     public void OnDestroy()
@@ -92,10 +173,57 @@ public class NetworkManager : MonoBehaviour
 
     }
 
-    public void RegisterObject(NetworkObject netObject)
+    public void InstantiateNewPlayer()
     {
-        registeredObjects.Add(netObject);
-        // Atención: aquí no se asigna un ID "global" sincronizado entre máquinas.
+        var playerObj = Instantiate(playerPrefab, new Vector3(0, 1, 0), Quaternion.identity);
+        var netObj = playerObj.GetComponent<NetworkObject>();
+        netObj.isLocalPlayer = true;
+        registeredObjects.Add(netObj);
+
+        if (role == NetworkRole.Server || role == NetworkRole.Host)
+        {
+            int assignedId = AllocateNetId();
+            AssignIdToLocalObject(netObj, assignedId);
+            Debug.Log($"[NetworkManager] Nuevo jugador local (servidor/host) con id={assignedId}");
+        }
+        else if (role == NetworkRole.Client)
+        {
+            requestingId = true;
+        }
+
+    }
+
+    // asigna id autoritativamente en servidor
+    public int AllocateNetId()
+    {
+        return nextObjectId++;
+    }
+
+    // asignación en hilo principal
+    public void AssignIdToLocalObject(NetworkObject obj, int assignedId)
+    {
+        // actualizar objeto y mapa
+        obj.id = assignedId;
+        objectsById[assignedId] = obj;
+    }
+
+    public void RequestNetID()
+    {
+        requestingId = true;
+    }
+
+    public static bool BufferIsText(byte[] buffer, int length, string text)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        if (length != bytes.Length) return false; // exact match - evita confundir con paquetes binarios
+        for (int i = 0; i < bytes.Length; i++)
+            if (buffer[i] != bytes[i]) return false;
+        return true;
+    }
+
+    private void EnqueueMainThreadAction(Action a)
+    {
+        mainThreadActions.Enqueue(a);
     }
 
     public void ServerProcess()
@@ -123,6 +251,17 @@ public class NetworkManager : MonoBehaviour
                 if (receivedDataLength > 0)
                 {
                     Debug.Log($"[Server] recibido {receivedDataLength} bytes desde {sender}");
+                    
+                    if (BufferIsText(bufferData, receivedDataLength, "REQUEST_ID"))
+                    {
+                        int newId = AllocateNetId();
+                        string response = $"ASSIGN_ID:{newId}";
+                        byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                        serverSocket.SendTo(respBytes, sender);
+                        Debug.Log($"[Server] asignado ID {newId} a {sender}");
+                        continue; // no procesar transforms en este paquete
+                    }
+
                     DeserializeData(bufferData, receivedDataLength);
 
                     byte[] transformData = SerializeData();
@@ -190,6 +329,13 @@ public class NetworkManager : MonoBehaviour
                         clientSocket.SendTo(transformData, serverEndPoint);
                         Debug.Log($"[Client] enviado {transformData.Length} bytes a {serverEndPoint}");
                     }
+
+                    if (requestingId)
+                    {
+                        byte[] idRequestData = System.Text.Encoding.UTF8.GetBytes("REQUEST_ID");
+                        clientSocket.SendTo(idRequestData, serverEndPoint);
+                        requestingId = false;
+                    }
                 }
                 catch (SocketException se)
                 {
@@ -203,7 +349,26 @@ public class NetworkManager : MonoBehaviour
                     if (receivedDataLength > 0)
                     {
                         Debug.Log($"[Client] recibido {receivedDataLength} bytes desde {sender}");
-                        DeserializeData(bufferData, receivedDataLength);
+
+                        // Comprobar si es un mensaje ASSIGN_ID:<id> (ASCII)
+                        string possibleAssign = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
+                        if (possibleAssign.StartsWith("ASSIGN_ID:"))
+                        {
+                            var parts = possibleAssign.Split(':');
+                            if (parts.Length == 2 && int.TryParse(parts[1], out int parsedId))
+                            {
+                                assignedIdFromServer = parsedId;
+                                Debug.Log($"[Client] Recibido ASSIGN_ID:{parsedId}");
+                            }
+                            else
+                            {
+                                Debug.LogWarning("[Client] ASSIGN_ID formato inválido");
+                            }
+                        }
+                        else
+                        {
+                            DeserializeData(bufferData, receivedDataLength);
+                        }
                     }
                 }
                 catch (SocketException se)
@@ -322,7 +487,39 @@ public class NetworkManager : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogWarning($"NetworkManager: recibido transform para id={transformDeserialized.id} pero no existe localmente.");
+                    var captured = transformDeserialized; // capture local copy
+                    EnqueueMainThreadAction(() =>
+                    {
+                        if (playerPrefab == null)
+                        {
+                            Debug.LogError("[NetworkManager] playerPrefab no asignado — no se puede instanciar objeto remoto.");
+                            return;
+                        }
+
+                        var go = Instantiate(playerPrefab, captured.position, captured.rotation);
+                        var netObj = go.GetComponent<NetworkObject>();
+                        if (netObj == null)
+                        {
+                            Debug.LogError("[NetworkManager] playerPrefab no contiene NetworkObject.");
+                            Destroy(go);
+                            return;
+                        }
+
+                        netObj.isLocalPlayer = false;
+                        netObj.id = captured.id;
+                        netObj.netTransform.position = captured.position;
+                        netObj.netTransform.rotation = captured.rotation;
+                        netObj.netTransform.scale = captured.scale;
+                        netObj.targetPosition = captured.position;
+                        netObj.targetRotation = captured.rotation;
+                        netObj.targetScale = captured.scale;
+
+                        // registrar localmente
+                        registeredObjects.Add(netObj);
+                        objectsById[captured.id] = netObj;
+
+                        Debug.Log($"[NetworkManager] Instanciado objeto remoto para id={captured.id} en hilo principal.");
+                    });
                 }
             }
 
