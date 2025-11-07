@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - DeathZone
+  - Bouncy
   layers:
   - Default
   - TransparentFX
