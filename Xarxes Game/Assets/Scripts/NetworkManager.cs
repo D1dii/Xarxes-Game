@@ -134,7 +134,7 @@ public class NetworkManager : MonoBehaviour
     public void JoinAsHost()
     {
         role = NetworkRole.Host;
-        StartServerDiscovery(); // Inicia el hilo de descubrimiento
+        StartServerDiscovery(); 
         StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
     }
 
@@ -168,24 +168,32 @@ public class NetworkManager : MonoBehaviour
             while (!cancelReceive)
             {
                 EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-                int length = 0;
-                try
-                {
-                    length = discoverySocket.ReceiveFrom(buffer, ref sender);
-                }
-                catch (SocketException) { continue; }
-                string msg = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
 
-                if (msg == "DISCOVER_SERVER")
+                
+                if (discoverySocket.Poll(100 * 1000, SelectMode.SelectRead))
                 {
-                    string response = "SERVER_HERE";
-                    byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
-                    discoverySocket.SendTo(respBytes, sender);
-                    Debug.Log($"[Discovery] Respondido a {sender}");
+                    int length = 0;
+                    try
+                    {
+                        length = discoverySocket.ReceiveFrom(buffer, ref sender);
+                    }
+                    catch (SocketException) { continue; }
+                    string msg = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
+
+                    if (msg == "DISCOVER_SERVER")
+                    {
+                        string response = "SERVER_HERE";
+                        byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                        discoverySocket.SendTo(respBytes, sender);
+                        Debug.Log($"[Discovery] Respondido a {sender}");
+                    }
                 }
+                Thread.Sleep(33);
             }
+            discoverySocket.Close();
         }
     }
+
 
     public void DiscoverServer(Action<string> onServerFound)
     {
@@ -220,6 +228,7 @@ public class NetworkManager : MonoBehaviour
                     Debug.LogWarning("[Discovery] No se encontró servidor.");
                     EnqueueMainThreadAction(() => onServerFound?.Invoke(null));
                 }
+                clientSocket.Close();
             }
         });
         clientDiscoveryThread.IsBackground = true;
@@ -344,30 +353,34 @@ public class NetworkManager : MonoBehaviour
             EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
             try
             {
-                int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref sender);
-                if (receivedDataLength > 0)
+                if (serverSocket.Poll(100 * 1000, SelectMode.SelectRead))
                 {
-                    Debug.Log($"[Server] recibido {receivedDataLength} bytes desde {sender}");
-                    
-                    if (BufferIsText(bufferData, receivedDataLength, "REQUEST_ID"))
+                    int receivedDataLength = serverSocket.ReceiveFrom(bufferData, 0, ref sender);
+                    if (receivedDataLength > 0)
                     {
-                        int newId = AllocateNetId();
-                        string response = $"ASSIGN_ID:{newId}";
-                        byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
-                        serverSocket.SendTo(respBytes, sender);
-                        Debug.Log($"[Server] asignado ID {newId} a {sender}");
-                        continue; // no procesar transforms en este paquete
-                    }
+                        Debug.Log($"[Server] recibido {receivedDataLength} bytes desde {sender}");
 
-                    DeserializeData(bufferData, receivedDataLength);
+                        if (BufferIsText(bufferData, receivedDataLength, "REQUEST_ID"))
+                        {
+                            int newId = AllocateNetId();
+                            string response = $"ASSIGN_ID:{newId}";
+                            byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                            serverSocket.SendTo(respBytes, sender);
+                            Debug.Log($"[Server] asignado ID {newId} a {sender}");
+                            continue; // no procesar transforms en este paquete
+                        }
 
-                    byte[] transformData = SerializeData();
-                    if (transformData != null && transformData.Length > 0)
-                    {
-                        serverSocket.SendTo(transformData, sender);
-                        Debug.Log($"[Server] enviado {transformData.Length} bytes a {sender}");
+                        DeserializeData(bufferData, receivedDataLength);
+
+                        byte[] transformData = SerializeData();
+                        if (transformData != null && transformData.Length > 0)
+                        {
+                            serverSocket.SendTo(transformData, sender);
+                            Debug.Log($"[Server] enviado {transformData.Length} bytes a {sender}");
+                        }
                     }
                 }
+                
             }
             catch (SocketException se)
             {
@@ -442,31 +455,35 @@ public class NetworkManager : MonoBehaviour
                 EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
                 try
                 {
-                    int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
-                    if (receivedDataLength > 0)
+                    if (clientSocket.Poll(100 * 1000, SelectMode.SelectRead))
                     {
-                        Debug.Log($"[Client] recibido {receivedDataLength} bytes desde {sender}");
-
-                        // Comprobar si es un mensaje ASSIGN_ID:<id> (ASCII)
-                        string possibleAssign = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
-                        if (possibleAssign.StartsWith("ASSIGN_ID:"))
+                        int receivedDataLength = clientSocket.ReceiveFrom(bufferData, 0, ref sender);
+                        if (receivedDataLength > 0)
                         {
-                            var parts = possibleAssign.Split(':');
-                            if (parts.Length == 2 && int.TryParse(parts[1], out int parsedId))
+                            Debug.Log($"[Client] recibido {receivedDataLength} bytes desde {sender}");
+
+                            // Comprobar si es un mensaje ASSIGN_ID:<id> (ASCII)
+                            string possibleAssign = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
+                            if (possibleAssign.StartsWith("ASSIGN_ID:"))
                             {
-                                assignedIdFromServer = parsedId;
-                                Debug.Log($"[Client] Recibido ASSIGN_ID:{parsedId}");
+                                var parts = possibleAssign.Split(':');
+                                if (parts.Length == 2 && int.TryParse(parts[1], out int parsedId))
+                                {
+                                    assignedIdFromServer = parsedId;
+                                    Debug.Log($"[Client] Recibido ASSIGN_ID:{parsedId}");
+                                }
+                                else
+                                {
+                                    Debug.LogWarning("[Client] ASSIGN_ID formato inválido");
+                                }
                             }
                             else
                             {
-                                Debug.LogWarning("[Client] ASSIGN_ID formato inválido");
+                                DeserializeData(bufferData, receivedDataLength);
                             }
                         }
-                        else
-                        {
-                            DeserializeData(bufferData, receivedDataLength);
-                        }
                     }
+                    
                 }
                 catch (SocketException se)
                 {
