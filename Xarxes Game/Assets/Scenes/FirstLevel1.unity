@@ -244,7 +244,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 25807087172577278, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: patata

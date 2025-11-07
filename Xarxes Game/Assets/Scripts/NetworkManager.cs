@@ -35,6 +35,9 @@ public class NetworkManager : MonoBehaviour
     Thread serverThread;
     Thread clientThread;
 
+    Thread serverDiscoveryThread;
+    Thread clientDiscoveryThread;
+
     public List<NetworkObject> registeredObjects;
     private Dictionary<int, NetworkObject> objectsById = new Dictionary<int, NetworkObject>();
     private int nextObjectId = 0;
@@ -98,6 +101,13 @@ public class NetworkManager : MonoBehaviour
         }
     }
 
+    public void StartServerDiscovery()
+    {
+        serverDiscoveryThread = new Thread(ServerDiscoveryProcess);
+        serverDiscoveryThread.IsBackground = true;
+        serverDiscoveryThread.Start();
+    }
+
     public void InitiateManager()
     {
         if (role == NetworkRole.Server)
@@ -124,13 +134,96 @@ public class NetworkManager : MonoBehaviour
     public void JoinAsHost()
     {
         role = NetworkRole.Host;
+        StartServerDiscovery(); // Inicia el hilo de descubrimiento
         StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
     }
 
     public void JoinAsClient()
     {
         role = NetworkRole.Client;
-        StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+        DiscoverServer(ip =>
+        {
+            if (!string.IsNullOrEmpty(ip))
+            {
+                serverIP = ip;
+                Debug.Log($"[NetworkManager] IP del servidor detectada: {serverIP}");
+                StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+            }
+            else
+            {
+                Debug.LogError("[NetworkManager] No se encontró ningún servidor en la red local.");
+            }
+        });
+    }
+
+    private void ServerDiscoveryProcess()
+    {
+        using (Socket discoverySocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+        {
+            IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, port);
+            discoverySocket.EnableBroadcast = true;
+            discoverySocket.Bind(localEndPoint);
+
+            byte[] buffer = new byte[1024];
+            while (!cancelReceive)
+            {
+                EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+                int length = 0;
+                try
+                {
+                    length = discoverySocket.ReceiveFrom(buffer, ref sender);
+                }
+                catch (SocketException) { continue; }
+                string msg = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
+
+                if (msg == "DISCOVER_SERVER")
+                {
+                    string response = "SERVER_HERE";
+                    byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                    discoverySocket.SendTo(respBytes, sender);
+                    Debug.Log($"[Discovery] Respondido a {sender}");
+                }
+            }
+        }
+    }
+
+    public void DiscoverServer(Action<string> onServerFound)
+    {
+        clientDiscoveryThread = new Thread(() =>
+        {
+            using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+            {
+                clientSocket.EnableBroadcast = true;
+                IPEndPoint broadcastEP = new IPEndPoint(IPAddress.Broadcast, port);
+
+                byte[] discoverMsg = System.Text.Encoding.UTF8.GetBytes("DISCOVER_SERVER");
+                clientSocket.SendTo(discoverMsg, broadcastEP);
+
+                byte[] buffer = new byte[1024];
+                EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+
+                clientSocket.ReceiveTimeout = 3000; // 3 segundos
+                try
+                {
+                    int length = clientSocket.ReceiveFrom(buffer, ref sender);
+                    string msg = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
+                    if (msg == "SERVER_HERE")
+                    {
+                        string serverIp = ((IPEndPoint)sender).Address.ToString();
+                        Debug.Log($"[Discovery] Servidor encontrado en {serverIp}");
+                        // Ejecutar en hilo principal
+                        EnqueueMainThreadAction(() => onServerFound?.Invoke(serverIp));
+                    }
+                }
+                catch (SocketException)
+                {
+                    Debug.LogWarning("[Discovery] No se encontró servidor.");
+                    EnqueueMainThreadAction(() => onServerFound?.Invoke(null));
+                }
+            }
+        });
+        clientDiscoveryThread.IsBackground = true;
+        clientDiscoveryThread.Start();
     }
 
     public System.Collections.IEnumerator LoadSceneAndInitiate(string sceneName, bool async)
@@ -170,8 +263,12 @@ public class NetworkManager : MonoBehaviour
             serverThread.Join();
         if (clientThread != null && clientThread.IsAlive)
             clientThread.Join();
-
+        if (serverDiscoveryThread != null && serverDiscoveryThread.IsAlive)
+            serverDiscoveryThread.Join();
+        if (clientDiscoveryThread != null && clientDiscoveryThread.IsAlive)
+            clientDiscoveryThread.Join();
     }
+
 
     public void InstantiateNewPlayer()
     {
