@@ -136,6 +136,15 @@ public class PlayerMovementRB : MonoBehaviour
        
     }
 
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Bouncy"))
+        {
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+
+            rb.AddForce(Vector3.up * jumpForce * 1.2f, ForceMode.Impulse);
+        }
+    }
     void OnDrawGizmosSelected()
     {
         // Dibuja el rayo de suelo en el editor para depuraci?n
