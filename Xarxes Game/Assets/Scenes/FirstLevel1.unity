@@ -2693,8 +2693,10 @@ GameObject:
   - component: {fileID: 964443898}
   - component: {fileID: 964443897}
   - component: {fileID: 964443896}
+  - component: {fileID: 964443900}
+  - component: {fileID: 964443901}
   m_Layer: 6
-  m_Name: Start platform (12)
+  m_Name: Moving Platform
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2792,6 +2794,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &964443900
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 964443895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597fb6d4d18ef864ebfa5c500843778c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkObject
+  id: -1
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  targetScale: {x: 0, y: 0, z: 0}
+  ownerAddress: 
+  isLocalPlayer: 0
+--- !u!114 &964443901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 964443895}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecef56dcd0651d94b8df5fa9fcbdb282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MovingWall
+  startPos: {x: -17.33, y: 3.26, z: 52}
+  endPos: {x: -17.33, y: 12, z: 52}
+  speed: 1
 --- !u!1 &993069937
 GameObject:
   m_ObjectHideFlags: 0
@@ -3816,8 +3851,10 @@ GameObject:
   - component: {fileID: 1316330034}
   - component: {fileID: 1316330033}
   - component: {fileID: 1316330032}
+  - component: {fileID: 1316330036}
+  - component: {fileID: 1316330037}
   m_Layer: 6
-  m_Name: Start platform (14)
+  m_Name: Moving Platform4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3915,6 +3952,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1316330036
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1316330031}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecef56dcd0651d94b8df5fa9fcbdb282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MovingWall
+  startPos: {x: -25, y: 3.26, z: 30.28}
+  endPos: {x: -25, y: 12, z: 30.28}
+  speed: 1
+--- !u!114 &1316330037
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1316330031}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597fb6d4d18ef864ebfa5c500843778c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkObject
+  id: -1
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  targetScale: {x: 0, y: 0, z: 0}
+  ownerAddress: 
+  isLocalPlayer: 0
 --- !u!1 &1329781223
 GameObject:
   m_ObjectHideFlags: 0
@@ -4845,8 +4915,10 @@ GameObject:
   - component: {fileID: 1510495149}
   - component: {fileID: 1510495148}
   - component: {fileID: 1510495147}
+  - component: {fileID: 1510495151}
+  - component: {fileID: 1510495152}
   m_Layer: 6
-  m_Name: Start platform (11)
+  m_Name: Moving Platform2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4944,6 +5016,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1510495151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1510495146}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecef56dcd0651d94b8df5fa9fcbdb282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MovingWall
+  startPos: {x: -25.14, y: 3.26, z: 44.88}
+  endPos: {x: -25.14, y: 12, z: 44.88}
+  speed: 1
+--- !u!114 &1510495152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1510495146}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597fb6d4d18ef864ebfa5c500843778c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkObject
+  id: -1
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  targetScale: {x: 0, y: 0, z: 0}
+  ownerAddress: 
+  isLocalPlayer: 0
 --- !u!1001 &1517584876
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5483,8 +5588,10 @@ GameObject:
   - component: {fileID: 1615816528}
   - component: {fileID: 1615816527}
   - component: {fileID: 1615816526}
+  - component: {fileID: 1615816530}
+  - component: {fileID: 1615816531}
   m_Layer: 6
-  m_Name: Start platform (13)
+  m_Name: Moving Platform3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5582,6 +5689,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1615816530
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1615816525}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ecef56dcd0651d94b8df5fa9fcbdb282, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MovingWall
+  startPos: {x: -16.91, y: 3.26, z: 37.71}
+  endPos: {x: -16.91, y: 12, z: 37.71}
+  speed: 1
+--- !u!114 &1615816531
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1615816525}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597fb6d4d18ef864ebfa5c500843778c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkObject
+  id: -1
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  targetScale: {x: 0, y: 0, z: 0}
+  ownerAddress: 
+  isLocalPlayer: 0
 --- !u!1 &1620906764
 GameObject:
   m_ObjectHideFlags: 0

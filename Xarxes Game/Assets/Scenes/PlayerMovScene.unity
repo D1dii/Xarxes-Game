@@ -963,22 +963,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player 1
       objectReference: {fileID: 0}
-    - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
-      propertyPath: dashForce
-      value: 50
-      objectReference: {fileID: 0}
-    - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
-      propertyPath: dashCooldown
-      value: 5
-      objectReference: {fileID: 0}
-    - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
-      propertyPath: dashDuration
-      value: 0.1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
-      propertyPath: grabMask.m_Bits
-      value: 128
-      objectReference: {fileID: 0}
     - target: {fileID: 6092889653738426005, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.34

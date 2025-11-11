@@ -167,6 +167,15 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   groundCheckDistance: 2
+  dashSpeed: 20
+  dashDuration: 0.1
+  dashPushForce: 15
+  dashCooldown: 5
+  grabRange: 2
+  grabThrowForce: 30
+  grabMask:
+    serializedVersion: 2
+    m_Bits: 128
   playerCamera: {fileID: 7978086273758191787}
 --- !u!114 &7788223902430760058
 MonoBehaviour:

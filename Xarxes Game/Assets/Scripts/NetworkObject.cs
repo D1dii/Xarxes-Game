@@ -4,7 +4,7 @@ using UnityEngine;
 public class NetworkObject : MonoBehaviour
 {
 
-    public int id;
+    public int id = -1;
 
     public struct NetworkTransform
     {
@@ -16,6 +16,10 @@ public class NetworkObject : MonoBehaviour
     public Vector3 targetPosition;
     public Quaternion targetRotation;
     public Vector3 targetScale;
+
+    // Nuevo: dirección (endpoint.ToString()) del propietario remoto.
+    // null o empty -> sin propietario remoto (el servidor es autoritativo o lo controla localmente).
+    public string ownerAddress = null;
 
     public bool isLocalPlayer = false;
 
@@ -32,7 +36,7 @@ public class NetworkObject : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()
     {
-        //NetworkManager.instance.RegisterObject(this);
+        
     }
 
     // Update is called once per frame

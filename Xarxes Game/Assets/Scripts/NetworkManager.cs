@@ -56,6 +56,17 @@ public class NetworkManager : MonoBehaviour
 
     public GameObject playerPrefab;
 
+    // --- NUEVO: gestionar clientes conocidos (endpoints) en el servidor para poder broadcast
+    private readonly HashSet<EndPoint> connectedClients = new HashSet<EndPoint>();
+    private readonly object clientsLock = new object();
+
+    // --- NUEVO: petición de ownership desde cliente
+    // Cuando quieras pedir ownership desde tu código de "agarrar", llama NetworkManager.instance.RequestOwnership(objectId)
+    public int requestingOwnershipId = -1;
+
+    // --- NUEVO: petición de release desde cliente
+    public int requestingReleaseId = -1;
+
     public void Awake()
     {
         if (instance == null)
@@ -114,6 +125,9 @@ public class NetworkManager : MonoBehaviour
 
     public void InitiateManager()
     {
+        // Registrar objetos de la escena en todos los roles para evitar "ghosts" en cliente
+        SearchNetworkObjectsOnScene();
+
         if (role == NetworkRole.Server)
         {
             serverThread = new Thread(ServerProcess);
@@ -132,6 +146,57 @@ public class NetworkManager : MonoBehaviour
             serverThread.Start();
             clientThread.Start();
             InstantiateNewPlayer();
+        }
+    }
+
+    public void SearchNetworkObjectsOnScene()
+    {
+        // Asegurarse de tener la lista inicializada
+        if (registeredObjects == null)
+            registeredObjects = new List<NetworkObject>();
+
+        // Buscar todos los NetworkObject activos en la escena
+        var found = FindObjectsOfType<NetworkObject>();
+
+        // Añadir nuevos encontrados sin duplicar y registrar ids existentes
+        foreach (var netObj in found)
+        {
+            if (!registeredObjects.Contains(netObj))
+            {
+                registeredObjects.Add(netObj);
+            }
+
+            // Si ya tiene id válido, registrar en el diccionario
+            if (netObj.id >= 0)
+            {
+                objectsById[netObj.id] = netObj;
+            }
+        }
+
+        // Reconstruir conjunto de ids usados y ajustar nextObjectId para evitar colisiones
+        var usedIds = new HashSet<int>(registeredObjects.Where(o => o.id >= 0).Select(o => o.id));
+        if (usedIds.Count > 0)
+        {
+            int maxUsed = usedIds.Max();
+            if (nextObjectId <= maxUsed)
+                nextObjectId = maxUsed + 1;
+        }
+
+        // Si somos servidor o host, asignar ids a todos los objetos sin id
+        if (role == NetworkRole.Server || role == NetworkRole.Host)
+        {
+            foreach (var obj in registeredObjects.Where(o => o.id < 0).ToList())
+            {
+                int assigned = AllocateNetId();
+                AssignIdToLocalObject(obj, assigned);
+                obj.isLocalPlayer = true; // marcar como local para que el servidor los envíe
+                Debug.Log($"[NetworkManager] Assigned id {assigned} to scene object '{obj.gameObject.name}'");
+            }
+        }
+        else
+        {
+            // Cliente: no asignamos ids autoritativos aquí; simplemente registramos objetos de la escena
+            Debug.Log($"[NetworkManager] Cliente: registrados {registeredObjects.Count} NetworkObjects en escena; nextObjectId={nextObjectId}");
         }
     }
 
@@ -334,6 +399,18 @@ public class NetworkManager : MonoBehaviour
         requestingId = true;
     }
 
+    // NUEVO: petición de ownership llamada desde el código de interacción (grabbing)
+    public void RequestOwnership(int objectId)
+    {
+        requestingOwnershipId = objectId;
+    }
+
+    // NUEVO: petición de release (soltar) llamada desde gameplay
+    public void RequestReleaseOwnership(int objectId)
+    {
+        requestingReleaseId = objectId;
+    }
+
     public static bool BufferIsText(byte[] buffer, int length, string text)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(text);
@@ -376,6 +453,14 @@ public class NetworkManager : MonoBehaviour
                     {
                         Debug.Log($"[Server] recibido {receivedDataLength} bytes desde {sender}");
 
+                        // registrar cliente conocido para broadcasting
+                        lock (clientsLock)
+                        {
+                            connectedClients.Add(sender);
+                        }
+
+                        // Manejar peticiones ASCII simples
+                        string maybeText = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
                         if (BufferIsText(bufferData, receivedDataLength, "REQUEST_ID"))
                         {
                             int newId = AllocateNetId();
@@ -385,14 +470,104 @@ public class NetworkManager : MonoBehaviour
                             Debug.Log($"[Server] asignado ID {newId} a {sender}");
                             continue; // no procesar transforms en este paquete
                         }
+                        else if (maybeText.StartsWith("REQUEST_OWNERSHIP:"))
+                        {
+                            var parts = maybeText.Split(':');
+                            if (parts.Length == 2 && int.TryParse(parts[1], out int requestedId))
+                            {
+                                if (objectsById.TryGetValue(requestedId, out var obj))
+                                {
+                                    // asignar ownerAddress al endpoint que pidió ownership
+                                    obj.ownerAddress = sender.ToString();
+                                    // Si el servidor ya controlaba el objeto, dejar de marcarlo para envío local del servidor:
+                                    obj.isLocalPlayer = false;
 
-                        DeserializeData(bufferData, receivedDataLength);
+                                    // enviar confirmación al cliente
+                                    string response = $"OWNERSHIP_GRANTED:{requestedId}";
+                                    byte[] respBytes = System.Text.Encoding.UTF8.GetBytes(response);
+                                    serverSocket.SendTo(respBytes, sender);
+                                    Debug.Log($"[Server] Ownership granted for id={requestedId} to {sender}");
+                                }
+                                else
+                                {
+                                    Debug.LogWarning($"[Server] REQUEST_OWNERSHIP: objeto id={requestedId} no encontrado");
+                                }
+                            }
+                            continue;
+                        }
+                        else if (maybeText.StartsWith("RELEASE_OWNERSHIP:"))
+                        {
+                            var parts = maybeText.Split(':');
+                            if (parts.Length == 2 && int.TryParse(parts[1], out int releasedId))
+                            {
+                                if (objectsById.TryGetValue(releasedId, out var obj))
+                                {
+                                    // Asegurar que el que pide release es realmente el owner registrado (o permitir liberación por admin)
+                                    if (obj.ownerAddress == sender.ToString())
+                                    {
+                                        obj.ownerAddress = null;
+                                        // servidor recupera control y volverá a enviar transforms
+                                        obj.isLocalPlayer = true;
 
+                                        // Notificar a todos los clientes que la ownership fue liberada (para que dejen de enviar)
+                                        string notification = $"OWNERSHIP_RELEASED:{releasedId}";
+                                        byte[] notifBytes = System.Text.Encoding.UTF8.GetBytes(notification);
+                                        List<EndPoint> snapshot;
+                                        lock (clientsLock)
+                                        {
+                                            snapshot = connectedClients.ToList();
+                                        }
+                                        foreach (var clientEP in snapshot)
+                                        {
+                                            try
+                                            {
+                                                serverSocket.SendTo(notifBytes, clientEP);
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Debug.LogWarning($"[Server] Error enviando OWNERSHIP_RELEASED a {clientEP}: {ex.Message}");
+                                            }
+                                        }
+
+                                        Debug.Log($"[Server] Ownership released for id={releasedId} by {sender}");
+                                    }
+                                    else
+                                    {
+                                        Debug.LogWarning($"[Server] RELEASE_OWNERSHIP de id={releasedId} ignorado: sender no es owner.");
+                                    }
+                                }
+                                else
+                                {
+                                    Debug.LogWarning($"[Server] RELEASE_OWNERSHIP: objeto id={releasedId} no encontrado");
+                                }
+                            }
+                            continue;
+                        }
+
+                        // Deserializar datos (pasa sender para que el servidor valide si el sender es owner)
+                        DeserializeData(bufferData, receivedDataLength, sender);
+
+                        // Después de procesar, enviar transforms actualizados a todos los clientes conocidos (broadcast)
                         byte[] transformData = SerializeData();
                         if (transformData != null && transformData.Length > 0)
                         {
-                            serverSocket.SendTo(transformData, sender);
-                            Debug.Log($"[Server] enviado {transformData.Length} bytes a {sender}");
+                            List<EndPoint> snapshot;
+                            lock (clientsLock)
+                            {
+                                snapshot = connectedClients.ToList();
+                            }
+                            foreach (var clientEP in snapshot)
+                            {
+                                try
+                                {
+                                    serverSocket.SendTo(transformData, clientEP);
+                                    Debug.Log($"[Server] enviado {transformData.Length} bytes a {clientEP}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.LogWarning($"[Server] Error enviando a {clientEP}: {ex.Message}");
+                                }
+                            }
                         }
                     }
                 }
@@ -447,6 +622,7 @@ public class NetworkManager : MonoBehaviour
 
             while (!cancelReceive)
             {
+                // Enviar transforms locales
                 byte[] transformData = SerializeData();
                 try
                 {
@@ -461,6 +637,26 @@ public class NetworkManager : MonoBehaviour
                         byte[] idRequestData = System.Text.Encoding.UTF8.GetBytes("REQUEST_ID");
                         clientSocket.SendTo(idRequestData, serverEndPoint);
                         requestingId = false;
+                    }
+
+                    // NUEVO: peticiones de ownership iniciadas por el gameplay
+                    if (requestingOwnershipId >= 0)
+                    {
+                        string req = $"REQUEST_OWNERSHIP:{requestingOwnershipId}";
+                        byte[] reqBytes = System.Text.Encoding.UTF8.GetBytes(req);
+                        clientSocket.SendTo(reqBytes, serverEndPoint);
+                        Debug.Log($"[Client] REQUEST_OWNERSHIP enviado para id={requestingOwnershipId}");
+                        requestingOwnershipId = -1;
+                    }
+
+                    // NUEVO: peticiones de release iniciadas por gameplay
+                    if (requestingReleaseId >= 0)
+                    {
+                        string req = $"RELEASE_OWNERSHIP:{requestingReleaseId}";
+                        byte[] reqBytes = System.Text.Encoding.UTF8.GetBytes(req);
+                        clientSocket.SendTo(reqBytes, serverEndPoint);
+                        Debug.Log($"[Client] RELEASE_OWNERSHIP enviado para id={requestingReleaseId}");
+                        requestingReleaseId = -1;
                     }
                 }
                 catch (SocketException se)
@@ -478,7 +674,7 @@ public class NetworkManager : MonoBehaviour
                         {
                             Debug.Log($"[Client] recibido {receivedDataLength} bytes desde {sender}");
 
-                            // Comprobar si es un mensaje ASSIGN_ID:<id> (ASCII)
+                            // Comprobar si es un mensaje ASSIGN_ID:<id> o OWNERSHIP_GRANTED:<id> (ASCII)
                             string possibleAssign = System.Text.Encoding.UTF8.GetString(bufferData, 0, receivedDataLength);
                             if (possibleAssign.StartsWith("ASSIGN_ID:"))
                             {
@@ -505,9 +701,52 @@ public class NetworkManager : MonoBehaviour
                                     Debug.LogWarning("[Client] ASSIGN_ID formato inválido");
                                 }
                             }
+                            else if (possibleAssign.StartsWith("OWNERSHIP_GRANTED:"))
+                            {
+                                var parts = possibleAssign.Split(':');
+                                if (parts.Length == 2 && int.TryParse(parts[1], out int grantedId))
+                                {
+                                    // Marcar localmente que este cliente ahora es propietario de ese objeto: permite el envío en SerializeData
+                                    EnqueueMainThreadAction(() =>
+                                    {
+                                        var target = registeredObjects.FirstOrDefault(o => o.id == grantedId);
+                                        if (target != null)
+                                        {
+                                            target.isLocalPlayer = true;
+                                            Debug.Log($"[Client] Ownership granted for id={grantedId}. Ahora el cliente lo controla.");
+                                        }
+                                        else
+                                        {
+                                            Debug.LogWarning($"[Client] OWNERSHIP_GRANTED para id={grantedId} pero no está instanciado localmente aún.");
+                                        }
+                                    });
+                                }
+                                else
+                                {
+                                    Debug.LogWarning("[Client] OWNERSHIP_GRANTED formato inválido");
+                                }
+                            }
+                            else if (possibleAssign.StartsWith("OWNERSHIP_RELEASED:"))
+                            {
+                                var parts = possibleAssign.Split(':');
+                                if (parts.Length == 2 && int.TryParse(parts[1], out int releasedId))
+                                {
+                                    EnqueueMainThreadAction(() =>
+                                    {
+                                        var target = registeredObjects.FirstOrDefault(o => o.id == releasedId);
+                                        if (target != null)
+                                        {
+                                            // servidor recuperó control: dejar de enviar transforms desde el cliente
+                                            target.isLocalPlayer = false;
+                                            Debug.Log($"[Client] Ownership released for id={releasedId}. Cliente deja de controlar.");
+                                        }
+                                    });
+                                }
+                            }
                             else
                             {
-                                DeserializeData(bufferData, receivedDataLength);
+                                // Mensaje binario: transforms (vienen del servidor normalmente)
+                                DeserializeData(bufferData, receivedDataLength, sender);
                             }
                         }
                     }
@@ -589,7 +828,8 @@ public class NetworkManager : MonoBehaviour
         return objectAsBytes;
     }
 
-    public void DeserializeData(byte[] objectAsBytes, int length)
+    // Modificado: ahora recibe EndPoint sender para validar ownership cuando es servidor.
+    public void DeserializeData(byte[] objectAsBytes, int length, EndPoint sender)
     {
 
         MemoryStream stream = new MemoryStream(objectAsBytes, 0, length);
@@ -629,9 +869,51 @@ public class NetworkManager : MonoBehaviour
 
                 if (target != null)
                 {
-                    if (!target.isLocalPlayer)
+                    // Si estamos en el cliente: aplicamos siempre lo que venga del servidor (sender es el server)
+                    if (role == NetworkRole.Client)
                     {
-                        target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                        if (!target.isLocalPlayer)
+                        {
+                            target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                        }
+                    }
+                    else // estamos en el servidor/host
+                    {
+                        // Validar que la actualización venga del propietario (si existe)
+                        string senderStr = sender?.ToString();
+                        if (!string.IsNullOrEmpty(target.ownerAddress))
+                        {
+                            if (senderStr == target.ownerAddress)
+                            {
+                                // update aceptado: el propietario remoto movió el objeto
+                                target.netTransform.position = transformDeserialized.position;
+                                target.netTransform.rotation = transformDeserialized.rotation;
+                                target.netTransform.scale = transformDeserialized.scale;
+
+                                // actualizar la representación que verán otros
+                                target.targetPosition = transformDeserialized.position;
+                                target.targetRotation = transformDeserialized.rotation;
+                                target.targetScale = transformDeserialized.scale;
+                            }
+                            else
+                            {
+                                Debug.LogWarning($"[DeserializeData] Update de id={transformDeserialized.id} rechazado: sender {senderStr} no es owner {target.ownerAddress}");
+                            }
+                        }
+                        else
+                        {
+                            // Si no hay owner remoto, y el objeto no es controlado por el servidor -> permitir actualización?
+                            // Por defecto rechazamos actualizaciones para objetos que el servidor controla (isLocalPlayer == true)
+                            if (!target.isLocalPlayer)
+                            {
+                                // objeto remoto no controlado por servidor, aceptar update (p.e. desde otro servidor/host)
+                                target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                            }
+                            else
+                            {
+                                Debug.Log($"[DeserializeData] Ignorado update para id={transformDeserialized.id} porque el servidor es autoritativo.");
+                            }
+                        }
                     }
                 }
                 else
@@ -639,6 +921,22 @@ public class NetworkManager : MonoBehaviour
                     var captured = transformDeserialized; // capture local copy
                     EnqueueMainThreadAction(() =>
                     {
+                        // Primero intentar reutilizar un NetworkObject ya presente en la escena sin id (placeholder)
+                        var reusable = registeredObjects.FirstOrDefault(o => o.id == -1 && !o.isLocalPlayer);
+                        if (reusable != null)
+                        {
+                            reusable.id = captured.id;
+                            reusable.netTransform.position = captured.position;
+                            reusable.netTransform.rotation = captured.rotation;
+                            reusable.netTransform.scale = captured.scale;
+                            reusable.targetPosition = captured.position;
+                            reusable.targetRotation = captured.rotation;
+                            reusable.targetScale = captured.scale;
+                            objectsById[captured.id] = reusable;
+                            Debug.Log($"[NetworkManager] Reutilizado objeto de escena para id={captured.id} (evitado ghost).");
+                            return;
+                        }
+
                         // Comprobar de nuevo en hilo principal para evitar duplicados
                         if (objectsById.ContainsKey(captured.id))
                         {
