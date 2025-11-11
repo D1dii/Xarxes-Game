@@ -9,7 +9,6 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 using Unity.VisualScripting;
-using UnityEditor.SearchService;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static UnityEngine.GraphicsBuffer;
@@ -55,6 +54,9 @@ public class NetworkManager : MonoBehaviour
     public string serverIP = "127.0.0.1";
 
     public GameObject playerPrefab;
+
+    // Máximo payload UDP IPv4 (65535 - IP header - UDP header)
+    private const int MaxUdpPacketSize = 65507;
 
     // --- NUEVO: gestionar clientes conocidos (endpoints) en el servidor para poder broadcast
     private readonly HashSet<EndPoint> connectedClients = new HashSet<EndPoint>();
@@ -432,6 +434,17 @@ public class NetworkManager : MonoBehaviour
         try
         {
             serverSocket.Bind(localEndPoint);
+            // Ajustar buffers del sistema para evitar truncado en recepción
+            try
+            {
+                serverSocket.ReceiveBufferSize = MaxUdpPacketSize;
+                serverSocket.SendBufferSize = MaxUdpPacketSize;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Server] No se pudo ajustar Send/ReceiveBufferSize: " + ex.Message);
+            }
+
             Debug.Log($"[Server] escuchando en {localEndPoint}");
         }
         catch (Exception ex)
@@ -440,7 +453,7 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        byte[] bufferData = new byte[4096];
+        byte[] bufferData = new byte[MaxUdpPacketSize];
         while (!cancelReceive)
         {
             EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
@@ -551,21 +564,28 @@ public class NetworkManager : MonoBehaviour
                         byte[] transformData = SerializeData();
                         if (transformData != null && transformData.Length > 0)
                         {
-                            List<EndPoint> snapshot;
-                            lock (clientsLock)
+                            if (transformData.Length > MaxUdpPacketSize)
                             {
-                                snapshot = connectedClients.ToList();
+                                Debug.LogWarning($"[Server] Transform data demasiado grande para UDP ({transformData.Length} bytes). No se enviará.");
                             }
-                            foreach (var clientEP in snapshot)
+                            else
                             {
-                                try
+                                List<EndPoint> snapshot;
+                                lock (clientsLock)
                                 {
-                                    serverSocket.SendTo(transformData, clientEP);
-                                    Debug.Log($"[Server] enviado {transformData.Length} bytes a {clientEP}");
+                                    snapshot = connectedClients.ToList();
                                 }
-                                catch (Exception ex)
+                                foreach (var clientEP in snapshot)
                                 {
-                                    Debug.LogWarning($"[Server] Error enviando a {clientEP}: {ex.Message}");
+                                    try
+                                    {
+                                        serverSocket.SendTo(transformData, clientEP);
+                                        Debug.Log($"[Server] enviado {transformData.Length} bytes a {clientEP}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Debug.LogWarning($"[Server] Error enviando a {clientEP}: {ex.Message}");
+                                    }
                                 }
                             }
                         }
@@ -605,6 +625,17 @@ public class NetworkManager : MonoBehaviour
                 Debug.LogWarning("[Client] IOControl SIO_UDP_CONNRESET no disponible: " + ex.Message);
             }
 
+            // Ajustar buffers del socket para permitir paquetes grandes
+            try
+            {
+                clientSocket.ReceiveBufferSize = MaxUdpPacketSize;
+                clientSocket.SendBufferSize = MaxUdpPacketSize;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Client] No se pudo ajustar Send/ReceiveBufferSize: " + ex.Message);
+            }
+
             IPAddress ip;
             try
             {
@@ -618,7 +649,7 @@ public class NetworkManager : MonoBehaviour
             IPEndPoint serverEndPoint = new IPEndPoint(ip, port);
             Debug.Log($"[Client] intentará conectar a {serverEndPoint}");
 
-            byte[] bufferData = new byte[4096];
+            byte[] bufferData = new byte[MaxUdpPacketSize];
 
             while (!cancelReceive)
             {
@@ -628,8 +659,15 @@ public class NetworkManager : MonoBehaviour
                 {
                     if (transformData != null && transformData.Length > 0)
                     {
-                        clientSocket.SendTo(transformData, serverEndPoint);
-                        Debug.Log($"[Client] enviado {transformData.Length} bytes a {serverEndPoint}");
+                        if (transformData.Length > MaxUdpPacketSize)
+                        {
+                            Debug.LogWarning($"[Client] Transform data demasiado grande para UDP ({transformData.Length} bytes). No se enviará.");
+                        }
+                        else
+                        {
+                            clientSocket.SendTo(transformData, serverEndPoint);
+                            Debug.Log($"[Client] enviado {transformData.Length} bytes a {serverEndPoint}");
+                        }
                     }
 
                     if (requestingId)
@@ -824,6 +862,15 @@ public class NetworkManager : MonoBehaviour
             Debug.Log("Serialization Failed : " + e.Message);
         }
         byte[] objectAsBytes = stream.ToArray();
+
+        // Si excede el máximo UDP, no lo enviamos (evita excepción en ReceiveFrom)
+        if (objectAsBytes.Length > MaxUdpPacketSize)
+        {
+            Debug.LogWarning($"[SerializeData] Paquete serializado demasiado grande para UDP ({objectAsBytes.Length} bytes). Considera reducir datos o fragmentar.");
+            stream.Close();
+            return null;
+        }
+
         stream.Close();
         return objectAsBytes;
     }
