@@ -153,6 +153,7 @@ MonoBehaviour:
   assignedIdFromServer: -1
   cancelReceive: 0
   port: 9050
+  discoveryPort: 9051
   serverIP: 127.0.0.1
   playerPrefab: {fileID: 0}
 --- !u!4 &284878146
@@ -348,7 +349,7 @@ GameObject:
   - component: {fileID: 980320631}
   - component: {fileID: 980320630}
   - component: {fileID: 980320629}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -487,7 +488,7 @@ GameObject:
   - component: {fileID: 1294201970}
   - component: {fileID: 1294201969}
   - component: {fileID: 1294201968}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Main Camera
   m_TagString: MainCamera
   m_Icon: {fileID: 0}
@@ -773,7 +774,7 @@ GameObject:
   - component: {fileID: 2058498099}
   - component: {fileID: 2058498097}
   - component: {fileID: 2058498096}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Player 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -822,6 +823,11 @@ MonoBehaviour:
   dashDuration: 0.1
   dashPushForce: 15
   dashCooldown: 5
+  grabRange: 2
+  grabThrowForce: 30
+  grabMask:
+    serializedVersion: 2
+    m_Bits: 0
   playerCamera: {fileID: 1294201966}
 --- !u!54 &2058498099
 Rigidbody:
@@ -968,6 +974,10 @@ PrefabInstance:
     - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: dashDuration
       value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1638463363629176664, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
+      propertyPath: grabMask.m_Bits
+      value: 128
       objectReference: {fileID: 0}
     - target: {fileID: 6092889653738426005, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_LocalPosition.x

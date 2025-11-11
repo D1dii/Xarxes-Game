@@ -21,11 +21,19 @@ public class PlayerMovementRB : MonoBehaviour
 
     [Header("Dash")]
     public float dashSpeed = 20f;
-    public float dashDuration = 0.1f;
+    public float dashDuration = 0.3f;
     public float dashPushForce = 15f;
     public float dashCooldown = 1.0f;
     private bool isDashing = false;
     private bool canDash = true;
+
+    [Header("Agarre")]
+    public float grabRange = 2f;
+    public float grabThrowForce = 30f;
+    public LayerMask grabMask;
+    private Rigidbody grabbedObjectRb;
+    private FixedJoint grabJoint;
+    private bool isGrabbing = false;
 
     private Rigidbody rb;
     private PlayerInputActions inputActions;
@@ -67,15 +75,17 @@ public class PlayerMovementRB : MonoBehaviour
     {
         inputActions.Player.Enable();
         inputActions.Player.Move.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Move.canceled += ctx => moveInput = Vector2.zero;
+        inputActions.Player.Move.canceled += ctx => moveInput = Vector3.zero;
         inputActions.Player.Jump.performed += ctx => jumpPressed = true;
         inputActions.Player.Dash.performed += HandleDashInput;
+        inputActions.Player.Grab.performed += HandleGrabInput;
     }
 
     void OnDisable()
     {
         inputActions.Player.Disable();
         inputActions.Player.Dash.performed -= HandleDashInput;
+        inputActions.Player.Grab.performed -= HandleGrabInput;
     }
 
     void FixedUpdate()
@@ -145,9 +155,67 @@ public class PlayerMovementRB : MonoBehaviour
     [System.Obsolete]
     private void HandleDashInput(InputAction.CallbackContext context)
     {
-        if (canDash && netObj.isLocalPlayer)
-        {
+        if (isGrabbing && grabbedObjectRb != null)
+            _Handle_Throw_();
+        else if (canDash && netObj.isLocalPlayer)
             StartCoroutine(DashCoroutine());
+    }
+
+    private void HandleGrabInput(InputAction.CallbackContext context)
+    {
+        if (!isGrabbing)
+            _Try_Grab_();
+        else
+            _Release_Grab_();
+    }
+
+    private void _Try_Grab_()
+    {
+        Vector3 grabPosition = transform.position + transform.forward * 1.0f;
+        Collider[] hits = Physics.OverlapSphere(grabPosition, grabRange, grabMask);
+
+        foreach (Collider hit in hits)
+        {
+            Rigidbody hitRb = hit.GetComponent<Rigidbody>();
+            if (hitRb != null && hitRb != rb && !hitRb.isKinematic)
+            {
+                grabbedObjectRb = hitRb;
+                isGrabbing = true;
+
+                grabJoint = gameObject.AddComponent<FixedJoint>();
+                grabJoint.connectedBody = grabbedObjectRb;
+                grabJoint.breakForce = Mathf.Infinity;
+                grabJoint.breakTorque = Mathf.Infinity;
+
+                animatotor.SetBool("Grabbing", true);
+                break;
+            }
+        }
+    }
+
+    private void _Release_Grab_()
+    {
+        if (grabJoint != null)
+        {
+            Destroy(grabJoint);
+        }
+
+        grabbedObjectRb = null;
+        isGrabbing = false;
+        animatotor.SetBool("Grabbing", false);
+    }
+
+    private void _Handle_Throw_()
+    {
+        Vector3 throwDirection = (cameraTransform.forward + Vector3.up * 0.2f).normalized;
+
+        Rigidbody tempRb = grabbedObjectRb;
+
+        _Release_Grab_();
+
+        if (tempRb != null)
+        {
+            tempRb.AddForce(throwDirection * grabThrowForce, ForceMode.Impulse);
         }
     }
 
@@ -222,5 +290,9 @@ public class PlayerMovementRB : MonoBehaviour
     {
         Gizmos.color = Color.yellow;
         Gizmos.DrawLine(transform.position + Vector3.up * 0.1f, transform.position + Vector3.up * 0.1f + Vector3.down * groundCheckDistance);
+
+        Gizmos.color = Color.blue;
+        Vector3 grabPosition = transform.position + transform.forward * 1.0f;
+        Gizmos.DrawWireSphere(grabPosition, grabRange);
     }
 }
