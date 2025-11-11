@@ -49,6 +49,9 @@ public class NetworkManager : MonoBehaviour
     public bool cancelReceive = false;
     public int port = 9050;
 
+    // Puerto separado para discovery (evita conflicto con el puerto de juego)
+    public int discoveryPort = 9051;
+
     public string serverIP = "127.0.0.1";
 
     public GameObject playerPrefab;
@@ -75,7 +78,8 @@ public class NetworkManager : MonoBehaviour
             int idToAssign = assignedIdFromServer;
             assignedIdFromServer = -1;
 
-            var target = registeredObjects.FirstOrDefault(o => o.isLocalPlayer && o.id == 0);
+            // ahora usamos sentinel -1 para objetos sin id asignado
+            var target = registeredObjects.FirstOrDefault(o => o.isLocalPlayer && o.id == -1);
             if (target != null)
             {
                 AssignIdToLocalObject(target, idToAssign);
@@ -134,7 +138,7 @@ public class NetworkManager : MonoBehaviour
     public void JoinAsHost()
     {
         role = NetworkRole.Host;
-        StartServerDiscovery(); 
+        StartServerDiscovery();
         StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
     }
 
@@ -160,16 +164,25 @@ public class NetworkManager : MonoBehaviour
     {
         using (Socket discoverySocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
         {
-            IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, port);
+            IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, discoveryPort);
             discoverySocket.EnableBroadcast = true;
-            discoverySocket.Bind(localEndPoint);
+            try
+            {
+                discoverySocket.Bind(localEndPoint);
+                Debug.Log($"[Discovery] escuchando en {localEndPoint}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[Discovery] Bind fallo: " + ex);
+                return;
+            }
 
             byte[] buffer = new byte[1024];
             while (!cancelReceive)
             {
                 EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
 
-                
+
                 if (discoverySocket.Poll(100 * 1000, SelectMode.SelectRead))
                 {
                     int length = 0;
@@ -202,7 +215,7 @@ public class NetworkManager : MonoBehaviour
             using (Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
             {
                 clientSocket.EnableBroadcast = true;
-                IPEndPoint broadcastEP = new IPEndPoint(IPAddress.Broadcast, port);
+                IPEndPoint broadcastEP = new IPEndPoint(IPAddress.Broadcast, discoveryPort);
 
                 byte[] discoverMsg = System.Text.Encoding.UTF8.GetBytes("DISCOVER_SERVER");
                 clientSocket.SendTo(discoverMsg, broadcastEP);
@@ -261,7 +274,7 @@ public class NetworkManager : MonoBehaviour
             yield return null;
         }
 
-        
+
         InitiateManager();
     }
 
@@ -284,6 +297,9 @@ public class NetworkManager : MonoBehaviour
         var playerObj = Instantiate(playerPrefab, new Vector3(0, 1, 0), Quaternion.identity);
         var netObj = playerObj.GetComponent<NetworkObject>();
         netObj.isLocalPlayer = true;
+
+        netObj.id = -1;
+
         registeredObjects.Add(netObj);
 
         if (role == NetworkRole.Server || role == NetworkRole.Host)
@@ -380,7 +396,7 @@ public class NetworkManager : MonoBehaviour
                         }
                     }
                 }
-                
+
             }
             catch (SocketException se)
             {
@@ -469,8 +485,20 @@ public class NetworkManager : MonoBehaviour
                                 var parts = possibleAssign.Split(':');
                                 if (parts.Length == 2 && int.TryParse(parts[1], out int parsedId))
                                 {
-                                    assignedIdFromServer = parsedId;
-                                    Debug.Log($"[Client] Recibido ASSIGN_ID:{parsedId}");
+                                    // aplicar inmediatamente en hilo principal
+                                    EnqueueMainThreadAction(() =>
+                                    {
+                                        var target = registeredObjects.FirstOrDefault(o => o.isLocalPlayer && o.id == -1);
+                                        if (target != null)
+                                        {
+                                            AssignIdToLocalObject(target, parsedId);
+                                            Debug.Log($"[Client] Asignado id {parsedId} al objeto local (hilo principal).");
+                                        }
+                                        else
+                                        {
+                                            assignedIdFromServer = parsedId;
+                                        }
+                                    });
                                 }
                                 else
                                 {
@@ -483,7 +511,7 @@ public class NetworkManager : MonoBehaviour
                             }
                         }
                     }
-                    
+
                 }
                 catch (SocketException se)
                 {
@@ -520,15 +548,15 @@ public class NetworkManager : MonoBehaviour
         BinaryFormatter formatter = new BinaryFormatter();
         try
         {
-
-            List<NetworkObject> toSend = registeredObjects.Where(o => o.isLocalPlayer).ToList();
+            // Sólo enviar objetos locales que tengan id válido (>= 0)
+            List<NetworkObject> toSend = registeredObjects.Where(o => o.isLocalPlayer && o.id >= 0).ToList();
 
             // Logging para depuración
             if (toSend.Count == 0)
             {
                 // enviamos 0 para que el receptor sepa que no hay transforms
                 formatter.Serialize(stream, 0);
-                Debug.Log("[SerializeData] no hay objetos locales para enviar.");
+                Debug.Log("[SerializeData] no hay objetos locales (con id) para enviar.");
             }
             else
             {
@@ -589,6 +617,13 @@ public class NetworkManager : MonoBehaviour
 
                 Debug.Log($"[DeserializeData] transform id={transformDeserialized.id} pos={transformDeserialized.position}");
 
+                // Ignorar ids inválidos
+                if (transformDeserialized.id < 0)
+                {
+                    Debug.LogWarning($"[DeserializeData] Ignorado transform con id inválido: {transformDeserialized.id}");
+                    continue;
+                }
+
                 NetworkObject target = null;
                 target = registeredObjects.FirstOrDefault(o => o.id == transformDeserialized.id);
 
@@ -604,6 +639,18 @@ public class NetworkManager : MonoBehaviour
                     var captured = transformDeserialized; // capture local copy
                     EnqueueMainThreadAction(() =>
                     {
+                        // Comprobar de nuevo en hilo principal para evitar duplicados
+                        if (objectsById.ContainsKey(captured.id))
+                        {
+                            var existing = objectsById[captured.id];
+                            if (existing != null)
+                            {
+                                existing.UpdateTransform(captured.position, captured.rotation, captured.scale);
+                                Debug.Log($"[NetworkManager] Actualizado objeto existente id={captured.id} en lugar de instanciar duplicado.");
+                                return;
+                            }
+                        }
+
                         if (playerPrefab == null)
                         {
                             Debug.LogError("[NetworkManager] playerPrefab no asignado — no se puede instanciar objeto remoto.");
