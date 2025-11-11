@@ -257,6 +257,7 @@ public class PlayerMovementRB : MonoBehaviour
         {
             float targetAngle = Mathf.Atan2(moveDirectionInput.x, moveDirectionInput.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
             dashDirection = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+            animatotor.SetBool("Sprint", true);
         }
         else
         {
@@ -275,6 +276,7 @@ public class PlayerMovementRB : MonoBehaviour
         }
 
         isDashing = false;
+        animatotor.SetBool("Sprint", false);
         animatotor.SetBool("Dashing", false);
         rb.useGravity = originalGravity;
 
