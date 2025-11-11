@@ -11,13 +11,15 @@ public class RotatingHammer : MonoBehaviour
     public float pushForce = 500f; 
 
     private float randomOffset = 0f;
-    private Rigidbody hammerRb;      
+    private Rigidbody hammerRb;
+    
+    private NetworkObject netObj;
 
     void Awake()
     {
         hammerRb = GetComponent<Rigidbody>();
+        netObj = GetComponent<NetworkObject>();
 
-       
 
         if (randomStart)
         {
@@ -27,6 +29,9 @@ public class RotatingHammer : MonoBehaviour
 
     void FixedUpdate()
     {
+
+        if (netObj.isLocalPlayer == false) return;
+
         float angle = Mathf.Sin((Time.time + randomOffset) * speed) * limit;
 
         Quaternion targetRotation = Quaternion.Euler(angle, 0, 0);

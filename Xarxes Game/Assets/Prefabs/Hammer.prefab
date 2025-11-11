@@ -264,6 +264,7 @@ GameObject:
   - component: {fileID: 6002896544361332818}
   - component: {fileID: 4974444052331724494}
   - component: {fileID: 2428837536849568747}
+  - component: {fileID: 7820820272449380073}
   m_Layer: 0
   m_Name: Pendulum
   m_TagString: Untagged
@@ -352,6 +353,24 @@ MonoBehaviour:
   limit: 75
   randomStart: 0
   pushForce: 500
+--- !u!114 &7820820272449380073
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6415905673518672065}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597fb6d4d18ef864ebfa5c500843778c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkObject
+  id: -1
+  targetPosition: {x: 0, y: 0, z: 0}
+  targetRotation: {x: 0, y: 0, z: 0, w: 0}
+  targetScale: {x: 0, y: 0, z: 0}
+  ownerAddress: 
+  isLocalPlayer: 0
 --- !u!1 &6846864559217789820
 GameObject:
   m_ObjectHideFlags: 0
