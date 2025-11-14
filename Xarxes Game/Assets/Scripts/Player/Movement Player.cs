@@ -100,6 +100,14 @@ public class PlayerMovementRB : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            NetworkManager.instance.testMessage = true;
+        }
+    }
+
     void MovePlayer()
     {
         Vector3 direction = new Vector3(moveInput.x, 0f, moveInput.y).normalized;

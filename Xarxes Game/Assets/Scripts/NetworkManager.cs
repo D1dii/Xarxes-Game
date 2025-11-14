@@ -153,53 +153,53 @@ public class NetworkManager : MonoBehaviour
 
     public void SearchNetworkObjectsOnScene()
     {
-        // Asegurarse de tener la lista inicializada
-        if (registeredObjects == null)
-            registeredObjects = new List<NetworkObject>();
+        //// Asegurarse de tener la lista inicializada
+        //if (registeredObjects == null)
+        //    registeredObjects = new List<NetworkObject>();
 
-        // Buscar todos los NetworkObject activos en la escena
-        var found = FindObjectsOfType<NetworkObject>();
+        //// Buscar todos los NetworkObject activos en la escena
+        //var found = FindObjectsOfType<NetworkObject>();
 
-        // Añadir nuevos encontrados sin duplicar y registrar ids existentes
-        foreach (var netObj in found)
-        {
-            if (!registeredObjects.Contains(netObj))
-            {
-                registeredObjects.Add(netObj);
-            }
+        //// Añadir nuevos encontrados sin duplicar y registrar ids existentes
+        //foreach (var netObj in found)
+        //{
+        //    if (!registeredObjects.Contains(netObj))
+        //    {
+        //        registeredObjects.Add(netObj);
+        //    }
 
-            // Si ya tiene id válido, registrar en el diccionario
-            if (netObj.id >= 0)
-            {
-                objectsById[netObj.id] = netObj;
-            }
-        }
+        //    // Si ya tiene id válido, registrar en el diccionario
+        //    if (netObj.id >= 0)
+        //    {
+        //        objectsById[netObj.id] = netObj;
+        //    }
+        //}
 
-        // Reconstruir conjunto de ids usados y ajustar nextObjectId para evitar colisiones
-        var usedIds = new HashSet<int>(registeredObjects.Where(o => o.id >= 0).Select(o => o.id));
-        if (usedIds.Count > 0)
-        {
-            int maxUsed = usedIds.Max();
-            if (nextObjectId <= maxUsed)
-                nextObjectId = maxUsed + 1;
-        }
+        //// Reconstruir conjunto de ids usados y ajustar nextObjectId para evitar colisiones
+        //var usedIds = new HashSet<int>(registeredObjects.Where(o => o.id >= 0).Select(o => o.id));
+        //if (usedIds.Count > 0)
+        //{
+        //    int maxUsed = usedIds.Max();
+        //    if (nextObjectId <= maxUsed)
+        //        nextObjectId = maxUsed + 1;
+        //}
 
-        // Si somos servidor o host, asignar ids a todos los objetos sin id
-        if (role == NetworkRole.Server || role == NetworkRole.Host)
-        {
-            foreach (var obj in registeredObjects.Where(o => o.id < 0).ToList())
-            {
-                int assigned = AllocateNetId();
-                AssignIdToLocalObject(obj, assigned);
-                obj.isLocalPlayer = true; // marcar como local para que el servidor los envíe
-                Debug.Log($"[NetworkManager] Assigned id {assigned} to scene object '{obj.gameObject.name}'");
-            }
-        }
-        else
-        {
-            // Cliente: no asignamos ids autoritativos aquí; simplemente registramos objetos de la escena
-            Debug.Log($"[NetworkManager] Cliente: registrados {registeredObjects.Count} NetworkObjects en escena; nextObjectId={nextObjectId}");
-        }
+        //// Si somos servidor o host, asignar ids a todos los objetos sin id
+        //if (role == NetworkRole.Server || role == NetworkRole.Host)
+        //{
+        //    foreach (var obj in registeredObjects.Where(o => o.id < 0).ToList())
+        //    {
+        //        int assigned = AllocateNetId();
+        //        AssignIdToLocalObject(obj, assigned);
+        //        obj.isLocalPlayer = true; // marcar como local para que el servidor los envíe
+        //        Debug.Log($"[NetworkManager] Assigned id {assigned} to scene object '{obj.gameObject.name}'");
+        //    }
+        //}
+        //else
+        //{
+        //    // Cliente: no asignamos ids autoritativos aquí; simplemente registramos objetos de la escena
+        //    Debug.Log($"[NetworkManager] Cliente: registrados {registeredObjects.Count} NetworkObjects en escena; nextObjectId={nextObjectId}");
+        //}
     }
 
     public void JoinAsHost()
@@ -556,6 +556,12 @@ public class NetworkManager : MonoBehaviour
                             }
                             continue;
                         }
+                        else if (maybeText.StartsWith("TEST_MESSAGE:"))
+                        {
+                            Debug.Log($"TEST MESSAGE");
+                            cancelReceive = true;
+                            continue;
+                        }
 
                         // Deserializar datos (pasa sender para que el servidor valide si el sender es owner)
                         DeserializeData(bufferData, receivedDataLength, sender);
@@ -607,6 +613,9 @@ public class NetworkManager : MonoBehaviour
         serverSocket.Close();
 
     }
+
+    public bool testMessage = false;
+    public bool firstSentMessage = false;
 
     public void ClientProcess()
     {
@@ -666,8 +675,23 @@ public class NetworkManager : MonoBehaviour
                         else
                         {
                             clientSocket.SendTo(transformData, serverEndPoint);
+                            if (!firstSentMessage && role == NetworkRole.Client && testMessage)
+                            {
+                                Debug.Log($"FIRST MESSAGE");
+                                firstSentMessage = true;
+                                cancelReceive = true;
+                            }
                             Debug.Log($"[Client] enviado {transformData.Length} bytes a {serverEndPoint}");
                         }
+                    }
+
+                    // Testing Lag
+                    if (testMessage)
+                    {
+                        byte[] testMessage = System.Text.Encoding.UTF8.GetBytes("TEST_MESSAGE:");
+                        Debug.Log($"[Client] Enviando TEST_MESSAGE al servidor.");
+                        clientSocket.SendTo(testMessage, serverEndPoint);
+                        
                     }
 
                     if (requestingId)
@@ -856,6 +880,12 @@ public class NetworkManager : MonoBehaviour
                 }
             }
 
+            if (toSend.Count == 1 && role == NetworkRole.Client)
+            {
+                Debug.Log("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "]" + "FIRST MESSAGE");
+                cancelReceive = true;
+            }
+
         }
         catch (SerializationException e)
         {
@@ -874,6 +904,8 @@ public class NetworkManager : MonoBehaviour
         stream.Close();
         return objectAsBytes;
     }
+
+    public bool hasReceivedFirstData = false;
 
     // Modificado: ahora recibe EndPoint sender para validar ownership cuando es servidor.
     public void DeserializeData(byte[] objectAsBytes, int length, EndPoint sender)
@@ -922,6 +954,8 @@ public class NetworkManager : MonoBehaviour
                         if (!target.isLocalPlayer)
                         {
                             target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                            Debug.Log("[" + DateTime.Now.ToString("HH:mm:ss.fff") + "]" + "FIRST MESSAGE");
+                            cancelReceive = true;
                         }
                     }
                     else // estamos en el servidor/host
@@ -955,6 +989,7 @@ public class NetworkManager : MonoBehaviour
                             {
                                 // objeto remoto no controlado por servidor, aceptar update (p.e. desde otro servidor/host)
                                 target.UpdateTransform(transformDeserialized.position, transformDeserialized.rotation, transformDeserialized.scale);
+                                
                             }
                             else
                             {
@@ -1027,6 +1062,8 @@ public class NetworkManager : MonoBehaviour
                         Debug.Log($"[NetworkManager] Instanciado objeto remoto para id={captured.id} en hilo principal.");
                     });
                 }
+
+                
             }
 
         }
