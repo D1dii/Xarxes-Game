@@ -10,15 +10,11 @@ public class ClientManager : MonoBehaviour
     public IPEndPoint clientEndPoint;
 
     private Queue<byte[]> sendQueue = new Queue<byte[]>();
-    private Queue<byte[]> receiveQueue = new Queue<byte[]>();
+    
 
     public void Update()
     {
-        if (receiveQueue.Count > 0)
-        {
-            byte[] receivedData = receiveQueue.Dequeue();
-            // Process the received data as needed
-        }
+        
     }
 
     public void ClientProcess()
@@ -33,12 +29,11 @@ public class ClientManager : MonoBehaviour
 
                 EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
                 byte[] buffer = new byte[4096];
-                int received = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
-                if (received > 0)
+                int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
+                if (receivedDataLength > 0)
                 {
-                    byte[] receivedData = new byte[received];
-                    System.Buffer.BlockCopy(buffer, 0, receivedData, 0, received);
-                    receiveQueue.Enqueue(receivedData);
+                    byte[] receivedData = new byte[receivedDataLength];
+                    NetManager.instance.OnPacketReceived(receivedData, receivedDataLength, remoteEP);
                 }
             }
         }
