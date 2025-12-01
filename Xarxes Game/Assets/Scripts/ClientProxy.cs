@@ -1,10 +1,11 @@
+using System.Net;
 using UnityEngine;
 
 public class ClientProxy
 {
-    string ip;
-    int port;
-    int netId;
+    public string ip;
+    public int port;
+    public int netId;
 
     public ClientProxy(string ip, int port, int netId)
     {
@@ -12,5 +13,12 @@ public class ClientProxy
         this.port = port;
         this.netId = netId;
     }
+
+    public IPEndPoint GetEndPoint()
+    {
+        return new IPEndPoint(IPAddress.Parse(ip), port);
+    }
+
+
 
 }

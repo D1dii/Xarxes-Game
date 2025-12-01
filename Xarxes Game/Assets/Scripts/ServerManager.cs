@@ -16,28 +16,20 @@ public class ServerManager : MonoBehaviour
 
         while (!NetManager.instance.cancelReceive)
         {
-            if (sendQueue.Count > 0)
-            {
-                byte[] sendData = sendQueue.Dequeue();
-                NetManager.instance.clientSocket.SendTo(sendData, serverEndPoint);
 
-                EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
-                byte[] buffer = new byte[4096];
-                int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
-                if (receivedDataLength > 0)
-                {
-                    byte[] receivedData = new byte[receivedDataLength];
-                    NetManager.instance.OnPacketReceived(receivedData, receivedDataLength, remoteEP);
-                }
+            EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
+            byte[] buffer = new byte[4096];
+            int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
+            if (receivedDataLength > 0)
+            {
+                byte[] receivedData = new byte[receivedDataLength];
+                NetManager.instance.OnPacketReceived(receivedData, receivedDataLength, remoteEP);
             }
         }
     }
 
-    public void DataToSend(byte[] sendData)
+    public void SendPacket(byte[] sendData, EndPoint clientIP)
     {
-        if (sendData != null && sendData.Length > 0)
-        {
-            sendQueue.Enqueue(sendData);
-        }
+        NetManager.instance.serverSocket.SendTo(sendData, clientIP);
     }
 }
