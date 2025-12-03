@@ -42,7 +42,7 @@ public class PlayerMovementRB : MonoBehaviour
     private bool isGrounded;
     private float turnSmoothVelocity;
 
-    private NetworkObject netObj;
+    private PlayerNetwork netObj;
     public GameObject playerCamera;
 
     void Awake()
@@ -51,7 +51,7 @@ public class PlayerMovementRB : MonoBehaviour
         rb.freezeRotation = true;
 
         inputActions = new PlayerInputActions();
-        netObj = GetComponent<NetworkObject>();
+        netObj = GetComponent<PlayerNetwork>();
     }
 
     private void Start()

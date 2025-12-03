@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Net;
 using UnityEngine;
+using System.Threading;
 
 public class ServerManager : MonoBehaviour
 {
@@ -11,6 +12,22 @@ public class ServerManager : MonoBehaviour
 
     private Queue<byte[]> sendQueue = new Queue<byte[]>();
 
+    public Thread serverThread;
+
+    public void Start()
+    {
+        serverThread = new Thread(new ThreadStart(ServerProcess));
+    }
+
+    public void OnDestroy()
+    {
+        if (serverThread != null && serverThread.IsAlive)
+        {
+            NetManager.instance.cancelReceive = true;
+            serverThread.Join();
+        }
+    }
+
     public void ServerProcess()
     {
 
@@ -19,7 +36,7 @@ public class ServerManager : MonoBehaviour
 
             EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
             byte[] buffer = new byte[4096];
-            int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
+            int receivedDataLength = NetManager.instance.serverSocket.ReceiveFrom(buffer, ref remoteEP);
             if (receivedDataLength > 0)
             {
                 byte[] receivedData = new byte[receivedDataLength];

@@ -25,6 +25,10 @@ public class NetManager : MonoBehaviour
     public Socket serverSocket;
 
     public List<ClientProxy> clientProxies = new List<ClientProxy>();
+    public List<NetObj> networkObjects = new List<NetObj>();
+
+    public GameObject localPlayerPrefab;
+    public GameObject remotePlayerPrefab;
 
     public int nextNetID = 1;
 
@@ -59,9 +63,26 @@ public class NetManager : MonoBehaviour
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public void Start()
     {
-        
+        if (mode == NetMode.Server)
+        {
+            clientManager.gameObject.SetActive(false);
+            ServerProcess();
+        }
+        else if (mode == NetMode.Client)
+        {
+            serverManager.gameObject.SetActive(false);
+            ClientProcess();
+            InstantiateNewLocalPlayer();
+        }
+        else if (mode == NetMode.Host)
+        {
+            ServerProcess();
+            ClientProcess();
+            localNetID = AssignNetID();
+            InstantiateNewLocalPlayer();
+        }
     }
 
     // Update is called once per frame
@@ -80,6 +101,9 @@ public class NetManager : MonoBehaviour
         if (serverManager != null)
         {
             serverManager.serverEndPoint = endPoint;
+            clientManager.serverEndPoint = endPoint;
+            serverManager.serverThread.Start();
+
         }
     }
 
@@ -92,7 +116,20 @@ public class NetManager : MonoBehaviour
         if (clientManager != null)
         {
             clientManager.clientEndPoint = endPoint;
+            clientManager.clientThread.Start();
         }
+    }
+
+    public GameObject GetNetworkObjectById(int netID)
+    {
+        foreach (var netObj in networkObjects)
+        {
+            if (netObj.netID == netID)
+            {
+                return netObj.gameObject;
+            }
+        }
+        return null;
     }
 
     public void OnPacketReceived(byte[] inputPacket, int receivedDataLength, EndPoint fromAddress)
@@ -119,7 +156,7 @@ public class NetManager : MonoBehaviour
             }
             else if (packetType == PacketType.PlayerInput)
             {
-
+                clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
             }
         }
         else if (mode == NetMode.Client)
@@ -133,7 +170,6 @@ public class NetManager : MonoBehaviour
             {
                 Debug.Log("Paquete Welcome recibido del servidor.");
                 clientManager.WelcomeReceived(inputPacket, receivedDataLength, headerSize);
-
             }
             else if (packetType == PacketType.NewClient)
             {
@@ -141,7 +177,7 @@ public class NetManager : MonoBehaviour
             }
             else if (packetType == PacketType.PlayerInput)
             {
-
+                clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
             }
         }
     }
@@ -154,9 +190,38 @@ public class NetManager : MonoBehaviour
         int assignedNetID = AssignNetID();
         ClientProxy newClient = new ClientProxy(ipString, port, assignedNetID);
         clientProxies.Add(newClient);
+        InstantiateRemotePlayer(assignedNetID);
 
         byte[] welcomePacket = BuildWelcomePacket(1, assignedNetID, clientProxies);
         serverManager.SendPacket(welcomePacket, newClient.GetEndPoint());
+    }
+
+    public void SendPlayerInputToProxies(byte[] inputPacket)
+    {
+        foreach (var client in clientProxies)
+        {
+            serverManager.SendPacket(inputPacket, client.GetEndPoint());
+        }
+    }
+
+    public void InstantiateRemotePlayer(int netID)
+    {
+        var remotePlayer = Instantiate(remotePlayerPrefab, new Vector3(0, 1, 0), Quaternion.identity);
+        var netObj = remotePlayer.GetComponent<PlayerNetwork>();
+        netObj.netID = netID;
+        netObj.isLocalPlayer = false;
+        networkObjects.Add(netObj);
+    }
+
+    public void InstantiateNewLocalPlayer()
+    {
+        var localPlayer = Instantiate(localPlayerPrefab, new Vector3(0, 1, 0), Quaternion.identity);
+        var netObj = localPlayer.GetComponent<PlayerNetwork>();
+        netObj.netID = localNetID;
+        netObj.isLocalPlayer = true;
+        networkObjects.Add(netObj);
+        clientManager.localPlayer = netObj;
+        clientManager.SendHelloMessage(1);
     }
 
     public byte[] BuildWelcomePacket(int packetId, int assignedNetId, List<ClientProxy> existingClients)
