@@ -1,11 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Threading;
 using UnityEditor.PackageManager;
 using UnityEngine;
 using UnityEngine.tvOS;
-using System.Threading;
 using static NetManager;
 
 public class ClientManager : MonoBehaviour
@@ -17,38 +19,130 @@ public class ClientManager : MonoBehaviour
 
     public int localNetId = 0;
 
-    private Queue<byte[]> sendQueue = new Queue<byte[]>();
-
     public Thread clientThread;
 
     public PlayerNetwork localPlayer;
+    private struct ReceivedPacket
+    {
+        public byte[] data;
+        public int length;
+        public EndPoint from;
+    }
 
-    public void Start()
+    private readonly Queue<ReceivedPacket> receiveQueue = new Queue<ReceivedPacket>();
+
+
+    public void Awake()
     {
         clientThread = new Thread(new ThreadStart(ClientProcess));
+        clientThread.IsBackground = true;
     }
 
     public void OnDestroy()
     {
+        NetManager.instance.cancelReceive = true;
+
+        try
+        {
+            NetManager.instance.clientSocket?.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Warning cerrando socket en OnDestroy (client): {ex.Message}");
+        }
+
         if (clientThread != null && clientThread.IsAlive)
         {
-            NetManager.instance.cancelReceive = true;
-            clientThread.Join();
+            bool exited = clientThread.Join(1000);
+            if (!exited)
+            {
+                Debug.LogWarning("El hilo del cliente no respondió al cierre dentro del timeout.");
+            }
         }
     }
 
     public void ClientProcess()
     {
 
+        try
+        {
+            if (NetManager.instance?.clientSocket != null)
+            {
+                NetManager.instance.clientSocket.ReceiveTimeout = 500; 
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"No se pudo establecer ReceiveTimeout en client: {ex.Message}");
+        }
+
         while (!NetManager.instance.cancelReceive)
         {
             EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
             byte[] buffer = new byte[4096];
-            int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
-            if (receivedDataLength > 0)
+            try
             {
-                byte[] receivedData = new byte[receivedDataLength];
-                NetManager.instance.OnPacketReceived(receivedData, receivedDataLength, remoteEP);
+                int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
+                if (receivedDataLength > 0)
+                {
+                    byte[] receivedData = new byte[receivedDataLength];
+                    Buffer.BlockCopy(buffer, 0, receivedData, 0, receivedDataLength);
+
+                    var packet = new ReceivedPacket
+                    {
+                        data = receivedData,
+                        length = receivedDataLength,
+                        from = remoteEP
+                    };
+
+                    receiveQueue.Enqueue(packet);
+                }
+            }
+            catch (SocketException sex)
+            {
+                
+                if (sex.SocketErrorCode == SocketError.TimedOut)
+                {
+                    continue;
+                }
+
+                if (NetManager.instance.cancelReceive) break;
+
+                Debug.LogError($"SocketException en ClientProcess: {sex.Message}");
+                Thread.Sleep(50);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Excepción en ClientProcess: {ex}");
+                if (NetManager.instance.cancelReceive) break;
+                Thread.Sleep(50);
+            }
+            Thread.Sleep(50);
+        }
+    }
+
+    public void Update()
+    {
+        List<ReceivedPacket> pending = null;
+        if (receiveQueue.Count > 0)
+        {
+            pending = new List<ReceivedPacket>(receiveQueue.Count);
+            while (receiveQueue.Count > 0)
+                pending.Add(receiveQueue.Dequeue()); 
+        }
+
+        if (pending != null)
+        {
+            foreach (var p in pending)
+            {
+                try
+                {
+                    NetManager.instance.OnPacketReceived(p.data, p.length, p.from);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Excepción procesando paquete en hilo principal (client): {ex}");
+                }
             }
         }
     }

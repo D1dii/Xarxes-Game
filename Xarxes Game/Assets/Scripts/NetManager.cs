@@ -62,6 +62,40 @@ public class NetManager : MonoBehaviour
         }
     }
 
+    public void OnDestroy()
+    {
+        cancelReceive = true;
+        try
+        {
+            clientSocket?.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Error cerrando clientSocket en NetManager.OnDestroy: {ex.Message}");
+        }
+
+        try
+        {
+            serverSocket?.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Error cerrando serverSocket en NetManager.OnDestroy: {ex.Message}");
+        }
+
+        if (clientManager != null && clientManager.clientThread != null && clientManager.clientThread.IsAlive)
+        {
+            bool exited = clientManager.clientThread.Join(1000);
+            if (!exited) Debug.LogWarning("clientThread no respondió al cierre dentro del timeout.");
+        }
+
+        if (serverManager != null && serverManager.serverThread != null && serverManager.serverThread.IsAlive)
+        {
+            bool exited = serverManager.serverThread.Join(1000);
+            if (!exited) Debug.LogWarning("serverThread no respondió al cierre dentro del timeout.");
+        }
+    }
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()
     {
@@ -95,8 +129,9 @@ public class NetManager : MonoBehaviour
     {
         serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         IPAddress address = IPAddress.Parse(serverIP);
-        IPEndPoint endPoint = new IPEndPoint(address, port);
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Loopback, port);
         serverSocket.Bind(endPoint);
+        
 
         if (serverManager != null)
         {
@@ -110,12 +145,15 @@ public class NetManager : MonoBehaviour
     public void ClientProcess()
     {
         clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        clientSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+
         IPAddress address = IPAddress.Parse(serverIP);
-        IPEndPoint endPoint = new IPEndPoint(address, port);
+        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, port);
 
         if (clientManager != null)
         {
-            clientManager.clientEndPoint = endPoint;
+            clientManager.clientEndPoint = (IPEndPoint)clientSocket.LocalEndPoint;
+            clientManager.serverEndPoint = serverEndPoint;
             clientManager.clientThread.Start();
         }
     }
