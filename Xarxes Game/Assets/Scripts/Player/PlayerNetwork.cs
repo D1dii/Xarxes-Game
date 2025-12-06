@@ -22,7 +22,7 @@ public class PlayerNetwork : NetObj
     public TargetData targetTransform;
 
     public float sendDataTimer = 0f;
-    public float sendDataInterval = 0.05f; 
+    public float sendDataInterval = 0.025f; 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()

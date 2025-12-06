@@ -68,7 +68,8 @@ public class ClientManager : MonoBehaviour
         {
             if (NetManager.instance?.clientSocket != null)
             {
-                NetManager.instance.clientSocket.ReceiveTimeout = 500; 
+                // No dependemos de ReceiveTimeout; usaremos Available para chequeos rápidos
+                NetManager.instance.clientSocket.ReceiveTimeout = 20;
             }
         }
         catch (Exception ex)
@@ -78,11 +79,41 @@ public class ClientManager : MonoBehaviour
 
         while (!NetManager.instance.cancelReceive)
         {
+            Socket sock = NetManager.instance?.clientSocket;
+            if (sock == null)
+            {
+                Thread.Sleep(100);
+                continue;
+            }
+
             EndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
             byte[] buffer = new byte[4096];
             try
             {
-                int receivedDataLength = NetManager.instance.clientSocket.ReceiveFrom(buffer, ref remoteEP);
+                int available = 0;
+                try
+                {
+                    available = sock.Available;
+                }
+                catch (SocketException)
+                {
+                    available = 0;
+                }
+                catch (ObjectDisposedException)
+                {
+                    if (NetManager.instance.cancelReceive) break;
+                    available = 0;
+                }
+
+                if (available == 0)
+                {
+                    if (NetManager.instance.cancelReceive) break;
+                    // pequeña espera para evitar busy-loop
+                    Thread.Sleep(10);
+                    continue;
+                }
+
+                int receivedDataLength = sock.ReceiveFrom(buffer, ref remoteEP);
                 if (receivedDataLength > 0)
                 {
                     byte[] receivedData = new byte[receivedDataLength];
@@ -100,7 +131,6 @@ public class ClientManager : MonoBehaviour
             }
             catch (SocketException sex)
             {
-                
                 if (sex.SocketErrorCode == SocketError.TimedOut)
                 {
                     continue;
@@ -109,15 +139,17 @@ public class ClientManager : MonoBehaviour
                 if (NetManager.instance.cancelReceive) break;
 
                 Debug.LogError($"SocketException en ClientProcess: {sex.Message}");
-                Thread.Sleep(50);
+                Thread.Sleep(10);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"Excepción en ClientProcess: {ex}");
                 if (NetManager.instance.cancelReceive) break;
-                Thread.Sleep(50);
+                Thread.Sleep(10);
             }
-            Thread.Sleep(50);
+
+            // pequeña espera para evitar uso excesivo de CPU
+            Thread.Sleep(10);
         }
     }
 
@@ -183,6 +215,26 @@ public class ClientManager : MonoBehaviour
                 localPlayer.netID = localNetId;
 
                 Debug.Log($"Welcome recibido. netId asignado={localNetId}, clientes={count}");
+
+                for (int i = 0; i < count; i++)
+                {
+                    string existingIp = (string)formatter.Deserialize(ms);
+                    int existingPort = (int)formatter.Deserialize(ms);
+                    int existingNetId = (int)formatter.Deserialize(ms);
+
+                    // No instanciar el propio cliente
+                    if (existingNetId != localNetId)
+                    {
+                        // Evitar duplicados si ya existe (por si acaso)
+                        var existingObj = NetManager.instance.GetNetworkObjectById(existingNetId);
+                        if (existingObj == null)
+                        {
+                            NetManager.instance.InstantiateRemotePlayer(existingNetId);
+                        }
+                    }
+
+                    Debug.Log($"Cliente existente: netId={existingNetId}, ip={existingIp}, port={existingPort}");
+                }
             }
         }
         catch (System.Exception ex)
@@ -204,7 +256,11 @@ public class ClientManager : MonoBehaviour
                 int netId = (int)formatter.Deserialize(ms);
 
                 // Spawn new remote player
-                NetManager.instance.InstantiateRemotePlayer(netId);
+                if (netId != localNetId)
+                {
+                    NetManager.instance.InstantiateRemotePlayer(netId);
+                }
+                    
 
                 Debug.Log($"Nuevo cliente conectado. netId={netId}, ip={ip}, port={p}");
             }

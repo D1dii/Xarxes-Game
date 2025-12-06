@@ -58,7 +58,7 @@ public class ServerManager : MonoBehaviour
 
     public void ServerProcess()
     {
-        // Usamos poll en lugar de depender únicamente de ReceiveTimeout para evitar excepciones
+        // Usamos Available en lugar de Poll para comprobar rápidamente si hay datos sin esperar largos timeouts
         while (!NetManager.instance.cancelReceive)
         {
             Socket sock = NetManager.instance?.serverSocket;
@@ -70,21 +70,29 @@ public class ServerManager : MonoBehaviour
 
             try
             {
-                // Poll espera hasta 500ms por datos (valor en microsegundos)
-                bool hasData = false;
+                // Comprobar bytes disponibles de forma rápida (no bloqueante)
+                int available = 0;
                 try
                 {
-                    hasData = sock.Poll(500 * 1000, SelectMode.SelectRead);
+                    available = sock.Available;
                 }
                 catch (SocketException)
                 {
-                    // si Poll falla, intentamos continuar y capturar más abajo
-                    hasData = false;
+                    // si Available falla, tratar como no hay datos y continuar
+                    available = 0;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // socket cerrado desde otro hilo
+                    if (NetManager.instance.cancelReceive) break;
+                    available = 0;
                 }
 
-                if (!hasData)
+                if (available == 0)
                 {
                     if (NetManager.instance.cancelReceive) break;
+                    // Evitar busy-loop: pequeña espera
+                    Thread.Sleep(10);
                     continue;
                 }
 
@@ -133,7 +141,7 @@ public class ServerManager : MonoBehaviour
                 if (NetManager.instance.cancelReceive) break;
 
                 Debug.LogError($"SocketException en ServerProcess: {sex}");
-                Thread.Sleep(50);
+                Thread.Sleep(10);
             }
             catch (ObjectDisposedException)
             {
@@ -145,9 +153,10 @@ public class ServerManager : MonoBehaviour
             {
                 Debug.LogError($"Excepción en ServerProcess: {ex}");
                 if (NetManager.instance.cancelReceive) break;
-                Thread.Sleep(50);
+                Thread.Sleep(10);
             }
 
+            // Mantener una pequeña espera para evitar uso excesivo de CPU
             Thread.Sleep(10);
         }
     }

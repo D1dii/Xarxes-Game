@@ -230,7 +230,24 @@ public class NetManager : MonoBehaviour
         clientProxies.Add(newClient);
         InstantiateRemotePlayer(assignedNetID);
 
-        byte[] welcomePacket = BuildWelcomePacket(1, assignedNetID, clientProxies);
+        var clientsForPacket = new List<ClientProxy>(clientProxies);
+
+        if (mode == NetMode.Host && clientManager != null && clientManager.clientEndPoint != null)
+        {
+            try
+            {
+                var hostAddr = clientManager.clientEndPoint;
+                // Añadimos el proxy del host para que los nuevos clientes creen el remote player del host
+                var hostProxy = new ClientProxy(hostAddr.Address.ToString(), hostAddr.Port, localNetID);
+                clientsForPacket.Add(hostProxy);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"No se pudo añadir proxy del host al WelcomePacket: {ex.Message}");
+            }
+        }
+
+        byte[] welcomePacket = BuildWelcomePacket(1, assignedNetID, clientsForPacket);
         serverManager.SendPacket(welcomePacket, newClient.GetEndPoint());
     }
 
