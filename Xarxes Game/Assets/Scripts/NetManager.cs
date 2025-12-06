@@ -182,7 +182,7 @@ public class NetManager : MonoBehaviour
             if (packetType == PacketType.Hello)
             {
                 Debug.Log("Paquete Hello recibido del cliente con IP: " + fromAddress.ToString());
-                
+
                 CreateNewClientProxy(fromAddress);
 
                 byte[] newClientPacket = BuildNewClientPacket(2, clientProxies[clientProxies.Count - 1]);
@@ -259,7 +259,11 @@ public class NetManager : MonoBehaviour
         netObj.isLocalPlayer = true;
         networkObjects.Add(netObj);
         clientManager.localPlayer = netObj;
-        clientManager.SendHelloMessage(1);
+        if (mode == NetMode.Client)
+        {
+            clientManager.SendHelloMessage(1);
+        }
+            
     }
 
     public byte[] BuildWelcomePacket(int packetId, int assignedNetId, List<ClientProxy> existingClients)
