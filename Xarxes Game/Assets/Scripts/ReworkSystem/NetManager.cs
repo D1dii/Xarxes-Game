@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 
 public class NetManager : MonoBehaviour
@@ -56,6 +57,7 @@ public class NetManager : MonoBehaviour
         if (instance == null)
         {
             instance = this;
+            DontDestroyOnLoad(gameObject);
         }
         else if (instance != this)
         {
@@ -97,8 +99,19 @@ public class NetManager : MonoBehaviour
         }
     }
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    public void Start()
+    public void JoinAsHost()
+    {
+        mode = NetMode.Host;
+        StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+    }
+
+    public void JoinAsClient()
+    {
+        mode = NetMode.Client;
+        StartCoroutine(LoadSceneAndInitiate("FirstLevel1", true));
+    }
+
+    public void InitializeLobby()
     {
         if (mode == NetMode.Server)
         {
@@ -119,10 +132,37 @@ public class NetManager : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
-    void Update()
+    public System.Collections.IEnumerator LoadSceneAndInitiate(string sceneName, bool async)
     {
-        
+
+
+
+        if (async)
+        {
+            AsyncOperation op = SceneManager.LoadSceneAsync(sceneName);
+            if (op == null)
+            {
+                yield break;
+            }
+            while (!op.isDone)
+                yield return null;
+        }
+        else
+        {
+            try
+            {
+                SceneManager.LoadScene(sceneName);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[NetworkManager] Excepción LoadScene('{sceneName}'): {e}");
+                yield break;
+            }
+            yield return null;
+        }
+
+
+        InitializeLobby();
     }
 
     public void ServerProcess()

@@ -9,6 +9,8 @@ using UnityEngine;
 public class ServerManager : MonoBehaviour
 {
 
+    private static ServerManager instance;
+
     public int port = 9050;
     public string serverIP = "127.0.0.1";
     public IPEndPoint serverEndPoint;
@@ -29,6 +31,17 @@ public class ServerManager : MonoBehaviour
 
     public void Awake()
     {
+
+        if (instance == null)
+        {
+            instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject);
+        }
+
         serverThread = new Thread(new ThreadStart(ServerProcess));
         serverThread.IsBackground = true;
     }

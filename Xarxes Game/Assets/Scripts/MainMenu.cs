@@ -6,7 +6,7 @@ using UnityEditor;
 public class MainMenu : MonoBehaviour
 {
     [SerializeField] private GameObject mainMenuCanvas;
-    [SerializeField] private NetworkManager networkManager;
+    [SerializeField] private NetManager networkManager;
     [SerializeField] private GameObject optionsMenuCanvas;
 
     void Start()

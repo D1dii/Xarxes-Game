@@ -12,6 +12,9 @@ using static NetManager;
 
 public class ClientManager : MonoBehaviour
 {
+
+    public static ClientManager instance;
+
     public int port = 9050;
     public string ip = "127.0.0.1";
     public IPEndPoint clientEndPoint;
@@ -34,6 +37,17 @@ public class ClientManager : MonoBehaviour
 
     public void Awake()
     {
+
+        if (instance == null)
+        {
+            instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject);
+        }
+
         clientThread = new Thread(new ThreadStart(ClientProcess));
         clientThread.IsBackground = true;
     }
