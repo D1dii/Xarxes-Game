@@ -211,8 +211,18 @@ public class ClientManager : MonoBehaviour
                 int count = (int)formatter.Deserialize(ms);
 
                 localNetId = assignedNetId;
-                NetManager.instance.localNetID = localNetId;
-                localPlayer.netID = localNetId;
+                if (NetManager.instance != null)
+                    NetManager.instance.localNetID = localNetId;
+
+                if (localPlayer != null)
+                {
+                    localPlayer.netID = localNetId;
+                }
+                else
+                {
+                    // Log informativo: el jugador local se instanciará después y deberá tomar el netID desde NetManager.instance.localNetID
+                    Debug.Log("Welcome recibido antes de instanciar jugador local. netId guardado y se aplicará al instanciar.");
+                }
 
                 Debug.Log($"Welcome recibido. netId asignado={localNetId}, clientes={count}");
 

@@ -1,11 +1,12 @@
-using System.Net.Sockets;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
 using System.Net;
+using System.Net.Sockets;
+using System.Runtime.Serialization.Formatters.Binary;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
-using System;
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Collections.Generic;
 
 
 public class NetManager : MonoBehaviour
@@ -107,8 +108,7 @@ public class NetManager : MonoBehaviour
         else if (mode == NetMode.Client)
         {
             serverManager.gameObject.SetActive(false);
-            ClientProcess();
-            InstantiateNewLocalPlayer();
+            StartCoroutine(JoinAsClientCoroutine(2f));
         }
         else if (mode == NetMode.Host)
         {
@@ -129,32 +129,147 @@ public class NetManager : MonoBehaviour
     {
         serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         IPAddress address = IPAddress.Parse(serverIP);
-        IPEndPoint endPoint = new IPEndPoint(IPAddress.Loopback, port);
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, port);
         serverSocket.Bind(endPoint);
-        
+
+        IPEndPoint localEP = (IPEndPoint)serverSocket.LocalEndPoint;
 
         if (serverManager != null)
         {
-            serverManager.serverEndPoint = endPoint;
-            clientManager.serverEndPoint = endPoint;
+            serverManager.serverEndPoint = localEP;
+            clientManager.serverEndPoint = localEP;
             serverManager.serverThread.Start();
 
         }
     }
 
-    public void ClientProcess()
+    public void ClientProcess(int localPort = 0)
     {
         clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        clientSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+        clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
+        if (localPort > 0)
+            clientSocket.Bind(new IPEndPoint(IPAddress.Any, localPort));
+        else
+            clientSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-        IPAddress address = IPAddress.Parse(serverIP);
-        IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Loopback, port);
+        IPAddress address;
+        try
+        {
+            address = IPAddress.Parse(serverIP);
+        }
+        catch (Exception)
+        {
+            // si serverIP no es válido, fallback a loopback
+            address = IPAddress.Loopback;
+        }
+        IPEndPoint serverEndPoint = new IPEndPoint(address, port);
 
         if (clientManager != null)
         {
             clientManager.clientEndPoint = (IPEndPoint)clientSocket.LocalEndPoint;
             clientManager.serverEndPoint = serverEndPoint;
             clientManager.clientThread.Start();
+        }
+    }
+
+    public IEnumerator JoinAsClientCoroutine(float timeoutSeconds = 2f)
+    {
+        // Solo aplicable si estamos en modo Cliente
+        if (mode != NetMode.Client)
+        {
+            Debug.LogWarning("JoinAsClient sólo funciona en modo Client.");
+            yield break;
+        }
+
+        byte[] helloPacket = BuildHelloPacket(1);
+
+        UdpClient udp = null;
+        udp = new UdpClient();
+        udp.EnableBroadcast = true;
+        // Bind al puerto ephemeral local para recibir respuesta
+        udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+        IPEndPoint broadcastEP = new IPEndPoint(IPAddress.Broadcast, port);
+
+        // Enviamos Hello por broadcast
+        udp.Send(helloPacket, helloPacket.Length, broadcastEP);
+
+        // configuramos timeout
+        var async = udp.BeginReceive(null, null);
+        float start = Time.time;
+        bool received = false;
+        byte[] receivedBytes = null;
+        IPEndPoint remoteEP = null;
+
+        while (Time.time - start < timeoutSeconds)
+        {
+            if (async.IsCompleted)
+            {
+                try
+                {
+                    receivedBytes = udp.EndReceive(async, ref remoteEP);
+                    received = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning("Error recibiendo respuesta de discovery: " + ex.Message);
+                    received = false;
+                }
+                break;
+            }
+            yield return null;
+        }
+
+        if (!received)
+        {
+            Debug.Log("No se encontraron hosts en la LAN.");
+            yield break;
+        }
+
+        // Comprobamos que el paquete recibido es un Welcome
+        try
+        {
+            int packetId;
+            PacketType packetType;
+            int headerSize;
+            (packetId, packetType, headerSize) = DeserializePacketIdentification(receivedBytes);
+
+            if (packetType != PacketType.Welcome)
+            {
+                Debug.LogWarning($"Respuesta recibida no es Welcome (tipo {packetType}). Ignorando.");
+                yield break;
+            }
+
+            // Guardamos la IP del servidor descubierto y arrancamos el proceso cliente normal
+            serverIP = remoteEP.Address.ToString();
+            Debug.Log($"Host encontrado en {serverIP}:{remoteEP.Port} - iniciando ClientProcess");
+
+            int discoveryLocalPort = ((IPEndPoint)udp.Client.LocalEndPoint).Port;
+            try { udp.Close(); } catch { }
+            udp = null;
+
+            // Iniciamos el proceso cliente para crear sockets y threads
+            ClientProcess(discoveryLocalPort);
+
+            // Reenviamos el paquete Welcome al ClientManager para que procese el registro
+            if (clientManager != null)
+            {
+                clientManager.WelcomeReceived(receivedBytes, receivedBytes.Length, headerSize);
+            }
+
+            // Instanciamos jugador local
+            InstantiateNewLocalPlayer();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("Error procesando paquete Welcome del host: " + ex.Message);
+            yield break;
+        }
+        finally
+        {
+            if (udp != null)
+            {
+                try { udp.Close(); } catch { }
+            }
         }
     }
 
@@ -204,12 +319,7 @@ public class NetManager : MonoBehaviour
             int headerSize;
             (packetId, packetType, headerSize) = DeserializePacketIdentification(inputPacket);
 
-            if (packetType == PacketType.Welcome)
-            {
-                Debug.Log("Paquete Welcome recibido del servidor.");
-                clientManager.WelcomeReceived(inputPacket, receivedDataLength, headerSize);
-            }
-            else if (packetType == PacketType.NewClient)
+            if (packetType == PacketType.NewClient)
             {
                 clientManager.NewClientReceived(inputPacket, receivedDataLength, headerSize);
             }
@@ -276,11 +386,19 @@ public class NetManager : MonoBehaviour
         netObj.isLocalPlayer = true;
         networkObjects.Add(netObj);
         clientManager.localPlayer = netObj;
-        if (mode == NetMode.Client)
-        {
-            clientManager.SendHelloMessage(1);
-        }
+        
             
+    }
+
+    public byte[] BuildHelloPacket(int packetId)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, packetId);
+            formatter.Serialize(ms, (byte)PacketType.Hello);
+            return ms.ToArray();
+        }
     }
 
     public byte[] BuildWelcomePacket(int packetId, int assignedNetId, List<ClientProxy> existingClients)
