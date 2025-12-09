@@ -381,4 +381,32 @@ public class ClientManager : MonoBehaviour
         }
     }
 
+    public void SendModifyObstacle(int objectNetId, Vector3 newPosition, Quaternion newRotation)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            // Header estándar
+            formatter.Serialize(ms, 0); // PacketID (puedes gestionar un contador si quieres)
+            formatter.Serialize(ms, (byte)PacketType.ModifyObstacle);
+
+            // Payload (Datos del obstáculo)
+            formatter.Serialize(ms, objectNetId);
+
+            // Serializar posición/rotación o el estado que haya cambiado
+            formatter.Serialize(ms, newPosition.x);
+            formatter.Serialize(ms, newPosition.y);
+            formatter.Serialize(ms, newPosition.z);
+
+            formatter.Serialize(ms, newRotation.x);
+            formatter.Serialize(ms, newRotation.y);
+            formatter.Serialize(ms, newRotation.z);
+            formatter.Serialize(ms, newRotation.w);
+
+            byte[] packet = ms.ToArray();
+
+            // Usamos SendPacket que ya tienes implementado
+            SendPacket(packet, serverEndPoint);
+        }
+    }
 }

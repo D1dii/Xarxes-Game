@@ -20,6 +20,35 @@ public class NetObj : MonoBehaviour
         targetRotation = transform.rotation;
     }
 
+    void Start()
+    {
+        
+        if (NetManager.instance != null)
+        {
+            
+            if (!NetManager.instance.networkObjects.Contains(this))
+            {
+                NetManager.instance.networkObjects.Add(this);
+
+                
+                if ((NetManager.instance.mode == NetManager.NetMode.Server ||
+                     NetManager.instance.mode == NetManager.NetMode.Host) && netID <= 0)
+                {
+                    netID = NetManager.instance.AssignNetID(); 
+                }
+            }
+        }
+    }
+
+    void OnDestroy()
+    {
+        
+        if (NetManager.instance != null)
+        {
+            NetManager.instance.networkObjects.Remove(this);
+        }
+    }
+
     public void Update()
     {
         if (NetManager.instance.mode == NetManager.NetMode.Client ||

@@ -53,7 +53,8 @@ public class NetManager : MonoBehaviour
         Welcome = 1,
         PlayerInput = 2,
         NewClient = 3,
-        WorldState = 4
+        WorldState = 4,
+        ModifyObstacle = 5
     }
 
     public void Awake()
@@ -66,20 +67,6 @@ public class NetManager : MonoBehaviour
         else if (instance != this)
         {
             Destroy(gameObject);
-        }
-    }
-
-    public void Update()
-    {
-        
-        if (mode == NetMode.Server || mode == NetMode.Host)
-        {
-            worldStateTimer += Time.deltaTime;
-            if (worldStateTimer >= worldStateRate)
-            {
-                worldStateTimer = 0;
-                SendWorldState();
-            }
         }
     }
 
@@ -368,6 +355,43 @@ public class NetManager : MonoBehaviour
             else if (packetType == PacketType.PlayerInput)
             {
                 clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
+            }
+            else if (packetType == PacketType.ModifyObstacle)
+            {
+                using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
+                {
+                    var formatter = new BinaryFormatter();
+
+                    
+                    int netId = (int)formatter.Deserialize(ms);
+
+                    float px = (float)formatter.Deserialize(ms);
+                    float py = (float)formatter.Deserialize(ms);
+                    float pz = (float)formatter.Deserialize(ms);
+                    Vector3 newPos = new Vector3(px, py, pz);
+
+                    float rx = (float)formatter.Deserialize(ms);
+                    float ry = (float)formatter.Deserialize(ms);
+                    float rz = (float)formatter.Deserialize(ms);
+                    float rw = (float)formatter.Deserialize(ms);
+                    Quaternion newRot = new Quaternion(rx, ry, rz, rw);
+
+                    
+                    GameObject obj = GetNetworkObjectById(netId);
+                    if (obj != null)
+                    {
+                        
+                        obj.transform.position = newPos;
+                        obj.transform.rotation = newRot;
+
+                        
+                        NetObj script = obj.GetComponent<NetObj>();
+                        if (script != null) script.UpdateState(newPos, newRot);
+                    }
+
+                    
+                    SendWorldState();
+                }
             }
         }
         else if (mode == NetMode.Client)
