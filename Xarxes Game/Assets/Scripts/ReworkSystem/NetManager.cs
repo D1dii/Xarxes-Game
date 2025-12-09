@@ -20,6 +20,9 @@ public class NetManager : MonoBehaviour
 
     public bool cancelReceive = false;
 
+    public float worldStateRate = 0.1f; 
+    private float worldStateTimer = 0f;
+
     public ClientManager clientManager;
     public ServerManager serverManager;
 
@@ -49,7 +52,8 @@ public class NetManager : MonoBehaviour
         Hello = 0,
         Welcome = 1,
         PlayerInput = 2,
-        NewClient = 3
+        NewClient = 3,
+        WorldState = 4
     }
 
     public void Awake()
@@ -62,6 +66,20 @@ public class NetManager : MonoBehaviour
         else if (instance != this)
         {
             Destroy(gameObject);
+        }
+    }
+
+    public void Update()
+    {
+        
+        if (mode == NetMode.Server || mode == NetMode.Host)
+        {
+            worldStateTimer += Time.deltaTime;
+            if (worldStateTimer >= worldStateRate)
+            {
+                worldStateTimer = 0;
+                SendWorldState();
+            }
         }
     }
 
@@ -497,6 +515,50 @@ public class NetManager : MonoBehaviour
     public int AssignNetID()
     {
         return nextNetID++;
+    }
+    public void SendWorldState()
+    {
+        
+        byte[] packet = BuildWorldStatePacket(AssignNetID()); 
+        
+        foreach (var client in clientProxies)
+        {
+            serverManager.SendPacket(packet, client.GetEndPoint());
+        }
+    }
+
+    public byte[] BuildWorldStatePacket(int packetId)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, packetId);
+            formatter.Serialize(ms, (byte)PacketType.WorldState);
+
+            
+            formatter.Serialize(ms, networkObjects.Count);
+
+            foreach (var netObj in networkObjects)
+            {
+                
+                formatter.Serialize(ms, netObj.netID);
+
+              
+                Vector3 pos = netObj.transform.position;
+                formatter.Serialize(ms, pos.x);
+                formatter.Serialize(ms, pos.y);
+                formatter.Serialize(ms, pos.z);
+
+                
+                Quaternion rot = netObj.transform.rotation;
+                formatter.Serialize(ms, rot.x);
+                formatter.Serialize(ms, rot.y);
+                formatter.Serialize(ms, rot.z);
+                formatter.Serialize(ms, rot.w);
+            }
+
+            return ms.ToArray();
+        }
     }
 
 }
