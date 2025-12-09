@@ -2,78 +2,31 @@ using UnityEngine;
 
 public class NetObj : MonoBehaviour
 {
-
     public int netID = -1;
 
-    
-    private Vector3 targetPosition;
-    private Quaternion targetRotation;
-    private bool isInitialized = false;
-
-    
-    public float lerpSpeed = 10f;
-
-    public void Awake()
+    protected virtual void Start()
     {
-       
-        targetPosition = transform.position;
-        targetRotation = transform.rotation;
-    }
-
-    void Start()
-    {
-        
         if (NetManager.instance != null)
         {
-            
             if (!NetManager.instance.networkObjects.Contains(this))
             {
                 NetManager.instance.networkObjects.Add(this);
 
-                
+                // Asignar ID si soy Host/Server y no tengo
                 if ((NetManager.instance.mode == NetManager.NetMode.Server ||
                      NetManager.instance.mode == NetManager.NetMode.Host) && netID <= 0)
                 {
-                    netID = NetManager.instance.AssignNetID(); 
+                    netID = NetManager.instance.AssignNetID();
                 }
             }
         }
     }
 
-    void OnDestroy()
+    protected virtual void OnDestroy()
     {
-        
         if (NetManager.instance != null)
         {
             NetManager.instance.networkObjects.Remove(this);
         }
     }
-
-    public void Update()
-    {
-        if (NetManager.instance.mode == NetManager.NetMode.Client ||
-           (NetManager.instance.mode == NetManager.NetMode.Host && !IsServerControlled()))
-        {
-            if (isInitialized)
-            {
-                transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * lerpSpeed);
-                transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, Time.deltaTime * lerpSpeed);
-            }
-        }
-    }
-
-    
-    public void UpdateState(Vector3 pos, Quaternion rot)
-    {
-        targetPosition = pos;
-        targetRotation = rot;
-        isInitialized = true;
-    }
-
-    
-    private bool IsServerControlled()
-    {
-        return true;
-    }
-
 }

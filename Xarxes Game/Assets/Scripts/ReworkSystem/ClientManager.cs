@@ -328,84 +328,23 @@ public class ClientManager : MonoBehaviour
         }
     }
 
-    public void WorldStateReceived(byte[] inputPacket, int receivedDataLength, int headerSize)
-    {
-        if (inputPacket == null || receivedDataLength == 0) return;
-        try
-        {
-            using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
-            {
-                var formatter = new BinaryFormatter();
-
-                
-                int objectCount = (int)formatter.Deserialize(ms);
-
-                for (int i = 0; i < objectCount; i++)
-                {
-                   
-                    int netId = (int)formatter.Deserialize(ms);
-
-                    float px = (float)formatter.Deserialize(ms);
-                    float py = (float)formatter.Deserialize(ms);
-                    float pz = (float)formatter.Deserialize(ms);
-                    Vector3 position = new Vector3(px, py, pz);
-
-               
-                    float rx = (float)formatter.Deserialize(ms);
-                    float ry = (float)formatter.Deserialize(ms);
-                    float rz = (float)formatter.Deserialize(ms);
-                    float rw = (float)formatter.Deserialize(ms);
-                    Quaternion rotation = new Quaternion(rx, ry, rz, rw);
-
-                    
-                    if (localPlayer != null && localPlayer.netID == netId)
-                        continue;
-
-                  
-                    GameObject obj = NetManager.instance.GetNetworkObjectById(netId);
-                    if (obj != null)
-                    {
-                        NetObj script = obj.GetComponent<NetObj>();
-                        if (script != null)
-                        {
-                            script.UpdateState(position, rotation);
-                        }
-                    }
-                    
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("Error al deserializar WorldStatePacket: " + ex);
-        }
-    }
+    
 
     public void SendModifyObstacle(int objectNetId, Vector3 newPosition, Quaternion newRotation)
     {
         using (var ms = new MemoryStream())
         {
             var formatter = new BinaryFormatter();
-            
             formatter.Serialize(ms, 0); 
-            formatter.Serialize(ms, (byte)PacketType.ModifyObstacle);
+            formatter.Serialize(ms, (byte)PacketType.ModifyObstacle); 
 
             
             formatter.Serialize(ms, objectNetId);
 
-            
-            formatter.Serialize(ms, newPosition.x);
-            formatter.Serialize(ms, newPosition.y);
-            formatter.Serialize(ms, newPosition.z);
-
-            formatter.Serialize(ms, newRotation.x);
-            formatter.Serialize(ms, newRotation.y);
-            formatter.Serialize(ms, newRotation.z);
-            formatter.Serialize(ms, newRotation.w);
+            formatter.Serialize(ms, newPosition.x); formatter.Serialize(ms, newPosition.y); formatter.Serialize(ms, newPosition.z);
+            formatter.Serialize(ms, newRotation.x); formatter.Serialize(ms, newRotation.y); formatter.Serialize(ms, newRotation.z); formatter.Serialize(ms, newRotation.w);
 
             byte[] packet = ms.ToArray();
-
-            
             SendPacket(packet, serverEndPoint);
         }
     }

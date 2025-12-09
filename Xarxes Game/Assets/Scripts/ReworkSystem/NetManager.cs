@@ -35,6 +35,9 @@ public class NetManager : MonoBehaviour
     public GameObject localPlayerPrefab;
     public GameObject remotePlayerPrefab;
 
+    public ReplicationManagerServer replicationServer = new ReplicationManagerServer();
+    public ReplicationManagerClient replicationClient = new ReplicationManagerClient();
+
     public int nextNetID = 1;
 
     public int localNetID = 0;
@@ -361,36 +364,26 @@ public class NetManager : MonoBehaviour
                 using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
                 {
                     var formatter = new BinaryFormatter();
+                    int netId = (int)formatter.Deserialize(ms); 
 
                     
-                    int netId = (int)formatter.Deserialize(ms);
+                    float px = (float)formatter.Deserialize(ms); float py = (float)formatter.Deserialize(ms); float pz = (float)formatter.Deserialize(ms);
+                   
+                    float rx = (float)formatter.Deserialize(ms); float ry = (float)formatter.Deserialize(ms); float rz = (float)formatter.Deserialize(ms); float rw = (float)formatter.Deserialize(ms);
 
-                    float px = (float)formatter.Deserialize(ms);
-                    float py = (float)formatter.Deserialize(ms);
-                    float pz = (float)formatter.Deserialize(ms);
                     Vector3 newPos = new Vector3(px, py, pz);
-
-                    float rx = (float)formatter.Deserialize(ms);
-                    float ry = (float)formatter.Deserialize(ms);
-                    float rz = (float)formatter.Deserialize(ms);
-                    float rw = (float)formatter.Deserialize(ms);
                     Quaternion newRot = new Quaternion(rx, ry, rz, rw);
 
-                    
+                   
                     GameObject obj = GetNetworkObjectById(netId);
                     if (obj != null)
                     {
-                        
                         obj.transform.position = newPos;
                         obj.transform.rotation = newRot;
-
-                        
-                        NetObj script = obj.GetComponent<NetObj>();
-                        if (script != null) script.UpdateState(newPos, newRot);
                     }
 
                     
-                    SendWorldState();
+                    replicationServer.SendWorldState();
                 }
             }
         }
@@ -409,6 +402,12 @@ public class NetManager : MonoBehaviour
             {
                 clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
             }
+
+            else if (packetType == PacketType.WorldState)
+            {
+                replicationClient.ReadWorldState(inputPacket, headerSize);
+            }
+
         }
     }
 
