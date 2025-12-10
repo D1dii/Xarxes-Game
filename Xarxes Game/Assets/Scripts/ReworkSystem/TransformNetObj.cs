@@ -23,7 +23,7 @@ public class TransformNetObj : NetObj
     [SerializeField] private float sendCooldownTimer = 0f;
     [SerializeField] private float sendCooldown = 1f;
 
-    [SerializeField] private bool imOwner = true;
+    public int ownerClientId = -1;
 
     void Awake()
     {
@@ -45,6 +45,8 @@ public class TransformNetObj : NetObj
                 sendCooldownTimer = 0f;
             }
         }
+
+        
 
         if (NetManager.instance.mode == NetManager.NetMode.Client ||
            (NetManager.instance.mode == NetManager.NetMode.Host))
@@ -69,25 +71,23 @@ public class TransformNetObj : NetObj
             }
         }
 
-        if (!hasReceivedData && imOwner)
+        if (!canSend) return;
+
+        sendDataTimer += Time.deltaTime;
+
+        if (sendDataTimer >= sendDataInterval && ownerClientId == -1)
         {
-            sendDataTimer += Time.deltaTime;
-
-            if (sendDataTimer >= sendDataInterval)
+            if (currentPosition != transform.position || currentRotation != transform.rotation)
             {
-                if (currentPosition != transform.position || currentRotation != transform.rotation)
-                {
-                    SendModifyObject();
-                }
-                sendDataTimer = 0f;
-                currentPosition = transform.position;
-                currentRotation = transform.rotation;
+                SendModifyObject();
             }
-
+            sendDataTimer = 0f;
+            currentPosition = transform.position;
+            currentRotation = transform.rotation;
         }
-        
 
-        
+
+
 
     }
 

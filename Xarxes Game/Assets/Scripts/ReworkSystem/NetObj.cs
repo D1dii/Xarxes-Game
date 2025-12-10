@@ -3,7 +3,7 @@ using UnityEngine;
 public class NetObj : MonoBehaviour
 {
     public int netID = -1;
-    public int ownerClientId = -1;
+    
 
     protected virtual void Start()
     {

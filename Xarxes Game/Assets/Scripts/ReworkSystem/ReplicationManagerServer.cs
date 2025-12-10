@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
@@ -22,11 +24,38 @@ public class ReplicationManagerServer
             Vector3 newPos = new Vector3(px, py, pz);
             Quaternion newRot = new Quaternion(rx, ry, rz, rw);
 
-            SendObjectState(netId, clientNetId, newPos, newRot);
-            SyncModifiedObject(netId, newPos, newRot);
+            if (!HasTemporalOwner(netId, clientNetId))
+            {
+                SendObjectState(netId, clientNetId, newPos, newRot);
+                SyncModifiedObject(netId, newPos, newRot);
+            }
+            else
+            {
+                DenyObjectModification(netId, clientNetId);
+            }
+
+            
         }
 
 
+    }
+
+    public bool HasTemporalOwner(int netId, int clientNetId)
+    {
+        GameObject netObj = NetManager.instance.GetNetworkObjectById(netId);
+        if (netObj != null)
+        {
+            TransformNetObj transformNetObj = netObj.GetComponent<TransformNetObj>();
+            if (transformNetObj != null)
+            {
+                if (transformNetObj.ownerClientId == -1)
+                {
+                    transformNetObj.ownerClientId = clientNetId;
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public void SyncModifiedObject(int netId, Vector3 position, Quaternion rotation)
@@ -38,8 +67,15 @@ public class ReplicationManagerServer
             if (transformNetObj != null)
             {
                 transformNetObj.UpdateState(position, rotation);
+                NetManager.instance.StartCoroutine(ResetOwnership(transformNetObj));
             }
         }
+    }
+
+    public IEnumerator ResetOwnership(TransformNetObj objectModified)
+    {
+       yield return new WaitForSeconds(1.5f);
+       objectModified.ownerClientId = -1;
     }
 
     public void SendObjectState(int netId, int clientNetId, Vector3 position, Quaternion rotation)
@@ -54,6 +90,26 @@ public class ReplicationManagerServer
                 NetManager.instance.serverSocket.SendTo(packet, client.GetEndPoint());
             }
             
+        }
+    }
+
+    public void DenyObjectModification(int netId, int clientNetId)
+    {
+        GameObject netObj = NetManager.instance.GetNetworkObjectById(netId);
+        if (netObj != null)
+        {
+            TransformNetObj transformNetObj = netObj.GetComponent<TransformNetObj>();
+            if (transformNetObj != null)
+            {
+                byte[] packet = BuildObjectStatePacket(netId, transformNetObj.transform.position, transformNetObj.transform.rotation);
+                foreach (var client in NetManager.instance.clientProxies)
+                {
+                    if (clientNetId == client.netId)
+                    {
+                        NetManager.instance.serverSocket.SendTo(packet, client.GetEndPoint());
+                    }
+                }
+            }
         }
     }
 
