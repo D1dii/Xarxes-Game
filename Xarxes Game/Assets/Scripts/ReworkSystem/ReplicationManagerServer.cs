@@ -1,58 +1,77 @@
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
+using static NetManager;
 
 public class ReplicationManagerServer
 {
-    public void SendWorldState()
-    {
-        
-        byte[] packet = BuildWorldStatePacket();
 
-        
-        foreach (var client in NetManager.instance.clientProxies)
+    public void ObjectModifiedReceived(byte[] packetReceived, int receivedDataLength, int headerSize)
+    {
+        using (var ms = new MemoryStream(packetReceived, headerSize, receivedDataLength - headerSize))
         {
-            NetManager.instance.serverManager.SendPacket(packet, client.GetEndPoint());
+            var formatter = new BinaryFormatter();
+            int netId = (int)formatter.Deserialize(ms);
+            int clientNetId = (int)formatter.Deserialize(ms);
+
+
+            float px = (float)formatter.Deserialize(ms); float py = (float)formatter.Deserialize(ms); float pz = (float)formatter.Deserialize(ms);
+
+            float rx = (float)formatter.Deserialize(ms); float ry = (float)formatter.Deserialize(ms); float rz = (float)formatter.Deserialize(ms); float rw = (float)formatter.Deserialize(ms);
+
+            Vector3 newPos = new Vector3(px, py, pz);
+            Quaternion newRot = new Quaternion(rx, ry, rz, rw);
+
+            SendObjectState(netId, clientNetId, newPos, newRot);
+            SyncModifiedObject(netId, newPos, newRot);
+        }
+
+
+    }
+
+    public void SyncModifiedObject(int netId, Vector3 position, Quaternion rotation)
+    {
+        GameObject netObj = NetManager.instance.GetNetworkObjectById(netId);
+        if (netObj != null)
+        {
+            TransformNetObj transformNetObj = netObj.GetComponent<TransformNetObj>();
+            if (transformNetObj != null)
+            {
+                transformNetObj.UpdateState(position, rotation);
+            }
         }
     }
 
-    private byte[] BuildWorldStatePacket()
+    public void SendObjectState(int netId, int clientNetId, Vector3 position, Quaternion rotation)
+    {
+
+        byte[] packet = BuildObjectStatePacket(netId, position, rotation);
+
+        foreach (var client in NetManager.instance.clientProxies)
+        {
+            if (clientNetId != client.netId)
+            {
+                NetManager.instance.serverSocket.SendTo(packet, client.GetEndPoint());
+            }
+            
+        }
+    }
+
+    private byte[] BuildObjectStatePacket(int netId, Vector3 position, Quaternion rotation)
     {
         using (var ms = new MemoryStream())
         {
             var formatter = new BinaryFormatter();
-
-            
-            formatter.Serialize(ms, 0); 
-            formatter.Serialize(ms, (byte)NetManager.PacketType.WorldState);
-
-            
-            formatter.Serialize(ms, NetManager.instance.networkObjects.Count);
-
-            foreach (var netObj in NetManager.instance.networkObjects)
-            {
-                
-                formatter.Serialize(ms, netObj.netID);
-
-               
-                TransformNetObj tObj = netObj.GetComponent<TransformNetObj>();
-
-                if (tObj != null)
-                {
-                    Vector3 pos = tObj.transform.position;
-                    Quaternion rot = tObj.transform.rotation;
-
-                    formatter.Serialize(ms, pos.x);
-                    formatter.Serialize(ms, pos.y);
-                    formatter.Serialize(ms, pos.z);
-
-                    formatter.Serialize(ms, rot.x);
-                    formatter.Serialize(ms, rot.y);
-                    formatter.Serialize(ms, rot.z);
-                    formatter.Serialize(ms, rot.w);
-                }
-               
-            }
+            formatter.Serialize(ms, 0);
+            formatter.Serialize(ms, (byte)PacketType.WorldState);
+            formatter.Serialize(ms, netId);
+            formatter.Serialize(ms, position.x);
+            formatter.Serialize(ms, position.y);
+            formatter.Serialize(ms, position.z);
+            formatter.Serialize(ms, rotation.x);
+            formatter.Serialize(ms, rotation.y);
+            formatter.Serialize(ms, rotation.z);
+            formatter.Serialize(ms, rotation.w);
             return ms.ToArray();
         }
     }

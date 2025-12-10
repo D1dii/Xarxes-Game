@@ -4,42 +4,33 @@ using UnityEngine;
 
 public class ReplicationManagerClient
 {
-    public void ReadWorldState(byte[] data, int headerSize)
+    public void ReadWorldState(byte[] data, int receivedDataLength, int headerSize)
     {
-        using (var ms = new MemoryStream(data))
+        using (var ms = new MemoryStream(data, headerSize, receivedDataLength - headerSize))
         {
-            ms.Seek(headerSize, SeekOrigin.Begin); 
             var formatter = new BinaryFormatter();
 
-            int objectCount = (int)formatter.Deserialize(ms);
+            int netId = (int)formatter.Deserialize(ms);
+            
 
-            for (int i = 0; i < objectCount; i++)
+            Vector3 position;
+            position.x = (float)formatter.Deserialize(ms);
+            position.y = (float)formatter.Deserialize(ms);
+            position.z = (float)formatter.Deserialize(ms);
+
+            Quaternion rotation;
+            rotation.x = (float)formatter.Deserialize(ms);
+            rotation.y = (float)formatter.Deserialize(ms);
+            rotation.z = (float)formatter.Deserialize(ms);
+            rotation.w = (float)formatter.Deserialize(ms);
+
+            GameObject netObj = NetManager.instance.GetNetworkObjectById(netId);
+            if (netObj != null)
             {
-                int netId = (int)formatter.Deserialize(ms);
-
-                
-                float px = (float)formatter.Deserialize(ms);
-                float py = (float)formatter.Deserialize(ms);
-                float pz = (float)formatter.Deserialize(ms);
-                Vector3 position = new Vector3(px, py, pz);
-
-                
-                float rx = (float)formatter.Deserialize(ms);
-                float ry = (float)formatter.Deserialize(ms);
-                float rz = (float)formatter.Deserialize(ms);
-                float rw = (float)formatter.Deserialize(ms);
-                Quaternion rotation = new Quaternion(rx, ry, rz, rw);
-
-                
-                GameObject obj = NetManager.instance.GetNetworkObjectById(netId);
-                if (obj != null)
+                TransformNetObj transformNetObj = netObj.GetComponent<TransformNetObj>();
+                if (transformNetObj != null)
                 {
-                    
-                    TransformNetObj script = obj.GetComponent<TransformNetObj>();
-                    if (script != null)
-                    {
-                        script.UpdateState(position, rotation);
-                    }
+                    transformNetObj.UpdateState(position, rotation);
                 }
             }
         }

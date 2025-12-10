@@ -328,24 +328,4 @@ public class ClientManager : MonoBehaviour
         }
     }
 
-    
-
-    public void SendModifyObstacle(int objectNetId, Vector3 newPosition, Quaternion newRotation)
-    {
-        using (var ms = new MemoryStream())
-        {
-            var formatter = new BinaryFormatter();
-            formatter.Serialize(ms, 0); 
-            formatter.Serialize(ms, (byte)PacketType.ModifyObstacle); 
-
-            
-            formatter.Serialize(ms, objectNetId);
-
-            formatter.Serialize(ms, newPosition.x); formatter.Serialize(ms, newPosition.y); formatter.Serialize(ms, newPosition.z);
-            formatter.Serialize(ms, newRotation.x); formatter.Serialize(ms, newRotation.y); formatter.Serialize(ms, newRotation.z); formatter.Serialize(ms, newRotation.w);
-
-            byte[] packet = ms.ToArray();
-            SendPacket(packet, serverEndPoint);
-        }
-    }
 }

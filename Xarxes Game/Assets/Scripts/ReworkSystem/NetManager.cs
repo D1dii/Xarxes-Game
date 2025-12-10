@@ -361,30 +361,7 @@ public class NetManager : MonoBehaviour
             }
             else if (packetType == PacketType.ModifyObstacle)
             {
-                using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
-                {
-                    var formatter = new BinaryFormatter();
-                    int netId = (int)formatter.Deserialize(ms); 
-
-                    
-                    float px = (float)formatter.Deserialize(ms); float py = (float)formatter.Deserialize(ms); float pz = (float)formatter.Deserialize(ms);
-                   
-                    float rx = (float)formatter.Deserialize(ms); float ry = (float)formatter.Deserialize(ms); float rz = (float)formatter.Deserialize(ms); float rw = (float)formatter.Deserialize(ms);
-
-                    Vector3 newPos = new Vector3(px, py, pz);
-                    Quaternion newRot = new Quaternion(rx, ry, rz, rw);
-
-                   
-                    GameObject obj = GetNetworkObjectById(netId);
-                    if (obj != null)
-                    {
-                        obj.transform.position = newPos;
-                        obj.transform.rotation = newRot;
-                    }
-
-                    
-                    replicationServer.SendWorldState();
-                }
+                replicationServer.ObjectModifiedReceived(inputPacket, receivedDataLength, headerSize);
             }
         }
         else if (mode == NetMode.Client)
@@ -402,10 +379,9 @@ public class NetManager : MonoBehaviour
             {
                 clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
             }
-
             else if (packetType == PacketType.WorldState)
             {
-                replicationClient.ReadWorldState(inputPacket, headerSize);
+                replicationClient.ReadWorldState(inputPacket, receivedDataLength, headerSize);
             }
 
         }
@@ -539,49 +515,6 @@ public class NetManager : MonoBehaviour
     {
         return nextNetID++;
     }
-    public void SendWorldState()
-    {
-        
-        byte[] packet = BuildWorldStatePacket(AssignNetID()); 
-        
-        foreach (var client in clientProxies)
-        {
-            serverManager.SendPacket(packet, client.GetEndPoint());
-        }
-    }
-
-    public byte[] BuildWorldStatePacket(int packetId)
-    {
-        using (var ms = new MemoryStream())
-        {
-            var formatter = new BinaryFormatter();
-            formatter.Serialize(ms, packetId);
-            formatter.Serialize(ms, (byte)PacketType.WorldState);
-
-            
-            formatter.Serialize(ms, networkObjects.Count);
-
-            foreach (var netObj in networkObjects)
-            {
-                
-                formatter.Serialize(ms, netObj.netID);
-
-              
-                Vector3 pos = netObj.transform.position;
-                formatter.Serialize(ms, pos.x);
-                formatter.Serialize(ms, pos.y);
-                formatter.Serialize(ms, pos.z);
-
-                
-                Quaternion rot = netObj.transform.rotation;
-                formatter.Serialize(ms, rot.x);
-                formatter.Serialize(ms, rot.y);
-                formatter.Serialize(ms, rot.z);
-                formatter.Serialize(ms, rot.w);
-            }
-
-            return ms.ToArray();
-        }
-    }
+    
 
 }
