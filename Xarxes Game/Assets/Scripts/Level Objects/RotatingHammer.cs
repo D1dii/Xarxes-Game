@@ -13,24 +13,18 @@ public class RotatingHammer : MonoBehaviour
     private float randomOffset = 0f;
     private Rigidbody hammerRb;
     
-    private NetworkObject netObj;
 
     void Awake()
     {
         hammerRb = GetComponent<Rigidbody>();
-        netObj = GetComponent<NetworkObject>();
-
 
         if (randomStart)
         {
             randomOffset = Random.Range(0f, 10f);
         }
     }
-
     void FixedUpdate()
     {
-
-        if (netObj.isLocalPlayer == false) return;
 
         float angle = Mathf.Sin((Time.time + randomOffset) * speed) * limit;
 
