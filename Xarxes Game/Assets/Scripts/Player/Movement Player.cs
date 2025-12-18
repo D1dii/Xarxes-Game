@@ -102,10 +102,7 @@ public class PlayerMovementRB : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.L))
-        {
-            NetworkManager.instance.testMessage = true;
-        }
+        
     }
 
     void MovePlayer()
@@ -195,12 +192,7 @@ public class PlayerMovementRB : MonoBehaviour
                 grabJoint.breakForce = Mathf.Infinity;
                 grabJoint.breakTorque = Mathf.Infinity;
 
-                var hitNetObj = hitRb.GetComponent<NetworkObject>();
-                if (hitNetObj != null)
-                {
-                    // Pedir ownership al servidor para poder mover ese objeto
-                    NetworkManager.instance.RequestOwnership(hitNetObj.id);
-                }
+                
 
                 animatotor.SetBool("Grabbing", true);
                 break;
@@ -215,13 +207,7 @@ public class PlayerMovementRB : MonoBehaviour
             // notificar al servidor que liberamos la propiedad antes de eliminar el joint
             if (grabbedObjectRb != null)
             {
-                var hitNetObj = grabbedObjectRb.GetComponent<NetworkObject>();
-                if (hitNetObj != null)
-                {
-                    NetworkManager.instance.RequestReleaseOwnership(hitNetObj.id);
-                    // localmente dejar de considerar que lo controlamos
-                    hitNetObj.isLocalPlayer = false;
-                }
+                
             }
 
             Destroy(grabJoint);
