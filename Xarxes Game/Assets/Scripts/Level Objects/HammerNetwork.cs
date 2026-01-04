@@ -11,6 +11,6 @@ public class HammerNetwork : NetObj
 
     public override void SyncWithServer(float startTime, float deltaTime)
     {
-
+        hammer.SetOffset(deltaTime);
     }
 }

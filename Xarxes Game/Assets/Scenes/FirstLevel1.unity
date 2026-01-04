@@ -1953,20 +1953,11 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2428837536849568747, guid: 87dcde7675338cb43b554b9a4295c237, type: 3}
-      propertyPath: randomStart
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 6846864559217789820, guid: 87dcde7675338cb43b554b9a4295c237, type: 3}
       propertyPath: m_Name
       value: Hammer (101)
       objectReference: {fileID: 0}
-    - target: {fileID: 8194758358495316661, guid: 87dcde7675338cb43b554b9a4295c237, type: 3}
-      propertyPath: netID
-      value: 101
-      objectReference: {fileID: 0}
-    m_RemovedComponents:
-    - {fileID: 7820820272449380073, guid: 87dcde7675338cb43b554b9a4295c237, type: 3}
+    m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []

@@ -7,8 +7,7 @@ public class MovingWall : MonoBehaviour
     public Vector3 endPos;
     public float speed = 1f;
 
-    public double timeOffset = 0.0;
-    public double movementStartTime = double.NaN;
+    private double timeOffset = 0.0;
 
     private static readonly DateTime unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
