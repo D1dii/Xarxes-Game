@@ -23,6 +23,9 @@ public class ClientManager : MonoBehaviour
     public Thread clientThread;
 
     public PlayerNetwork localPlayer;
+
+    public float deltaTime = 0f;
+
     private struct ReceivedPacket
     {
         public byte[] data;
@@ -326,6 +329,27 @@ public class ClientManager : MonoBehaviour
         catch (System.Exception ex)
         {
             Debug.LogError("Error al deserializar PlayerInputPacket: " + ex);
+        }
+    }
+
+    public void DeltaTimeReceived(byte[] inputPacket, int receivedDataLength, int headerSize)
+    {
+        if (inputPacket == null || receivedDataLength == 0) return;
+        try
+        {
+            using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
+            {
+                var formatter = new BinaryFormatter();
+                deltaTime = (float)formatter.Deserialize(ms);
+
+                NetManager.instance.SyncNetworkObjectsInScene();
+
+                Debug.Log($"DeltaTime recibido del servidor: {deltaTime}");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError("Error al deserializar DeltaTimePacket: " + ex);
         }
     }
 

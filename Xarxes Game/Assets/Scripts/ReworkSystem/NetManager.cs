@@ -57,7 +57,8 @@ public class NetManager : MonoBehaviour
         NewClient = 3,
         WorldState = 4,
         ModifyObstacle = 5,
-        TimeSync = 6
+        TimeSync = 6,
+        DeltaTime = 7
     }
 
     public void Awake()
@@ -370,8 +371,12 @@ public class NetManager : MonoBehaviour
                     if (client.GetEndPoint().Equals(fromAddress))
                     {
                         client.CalculateDeltaTime(inputPacket, receivedDataLength, headerSize);
+                        byte[] deltaTimePacket = BuildDeltaTimePacket(3, client);
+                        serverManager.SendPacket(deltaTimePacket, client.GetEndPoint());
                     }
                 }
+
+
             }
         }
         else if (mode == NetMode.Client)
@@ -392,6 +397,10 @@ public class NetManager : MonoBehaviour
             else if (packetType == PacketType.WorldState)
             {
                 replicationClient.ReadWorldState(inputPacket, receivedDataLength, headerSize);
+            }
+            else if (packetType == PacketType.DeltaTime)
+            {
+                clientManager.DeltaTimeReceived(inputPacket, receivedDataLength, headerSize);
             }
 
         }
@@ -458,6 +467,14 @@ public class NetManager : MonoBehaviour
             
     }
 
+    public void SyncNetworkObjectsInScene()
+    {
+        foreach (var netObj in networkObjects)
+        {
+            netObj.SyncWithServer(clientManager.deltaTime);
+        }
+    }
+
     public byte[] BuildHelloPacket(int packetId)
     {
         using (var ms = new MemoryStream())
@@ -498,6 +515,18 @@ public class NetManager : MonoBehaviour
             formatter.Serialize(ms, newClient.ip);
             formatter.Serialize(ms, newClient.port);
             formatter.Serialize(ms, newClient.netId);
+            return ms.ToArray();
+        }
+    }
+
+    public byte[] BuildDeltaTimePacket(int packetId, ClientProxy clientProxy)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, packetId);
+            formatter.Serialize(ms, (byte)PacketType.DeltaTime);
+            formatter.Serialize(ms, clientProxy.deltaTime);
             return ms.ToArray();
         }
     }

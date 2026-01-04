@@ -23,4 +23,9 @@ public class NetObj : MonoBehaviour
             NetManager.instance.networkObjects.Remove(this);
         }
     }
+
+    virtual public void SyncWithServer(float deltaTime)
+    {
+        // Implement synchronization logic in derived classes
+    }
 }
