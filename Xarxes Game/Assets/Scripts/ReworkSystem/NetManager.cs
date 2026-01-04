@@ -56,7 +56,8 @@ public class NetManager : MonoBehaviour
         PlayerInput = 2,
         NewClient = 3,
         WorldState = 4,
-        ModifyObstacle = 5
+        ModifyObstacle = 5,
+        TimeSync = 6
     }
 
     public void Awake()
@@ -362,6 +363,16 @@ public class NetManager : MonoBehaviour
             {
                 replicationServer.ObjectModifiedReceived(inputPacket, receivedDataLength, headerSize);
             }
+            else if (packetType == PacketType.TimeSync)
+            {
+                foreach (var client in clientProxies)
+                {
+                    if (client.GetEndPoint().Equals(fromAddress))
+                    {
+                        client.CalculateDeltaTime(inputPacket, receivedDataLength, headerSize);
+                    }
+                }
+            }
         }
         else if (mode == NetMode.Client)
         {
@@ -393,6 +404,7 @@ public class NetManager : MonoBehaviour
         int port = remoteEP.Port;
         int assignedNetID = AssignNetID();
         ClientProxy newClient = new ClientProxy(ipString, port, assignedNetID);
+        newClient.startTime = (float)DateTime.UtcNow.Ticks;
         clientProxies.Add(newClient);
         InstantiateRemotePlayer(assignedNetID);
 

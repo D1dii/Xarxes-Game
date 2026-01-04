@@ -196,19 +196,6 @@ public class ClientManager : MonoBehaviour
         NetManager.instance.clientSocket.SendTo(sendData, serverIP);
     }
 
-    public void SendHelloMessage(int packetID)
-    {
-        using (var ms = new MemoryStream())
-        {
-            var formatter = new BinaryFormatter();
-            formatter.Serialize(ms, packetID);
-            formatter.Serialize(ms, (byte)PacketType.Hello);
-
-            byte[] packet = ms.ToArray();
-            SendPacket(packet, serverEndPoint);
-        }
-    }
-
     public void WelcomeReceived(byte[] inputPacket, int receivedDataLength, int headerSize)
     {
         if (inputPacket == null || receivedDataLength == 0) return;
@@ -257,11 +244,27 @@ public class ClientManager : MonoBehaviour
 
                     Debug.Log($"Cliente existente: netId={existingNetId}, ip={existingIp}, port={existingPort}");
                 }
+
+                byte[] timeStampPacket = BuildTimeStampPacket();
+                SendPacket(timeStampPacket, serverEndPoint);
+
             }
         }
         catch (System.Exception ex)
         {
             Debug.LogError("Error al deserializar WelcomePacket: " + ex);
+        }
+    }
+
+    public byte[] BuildTimeStampPacket()
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, 1);
+            formatter.Serialize(ms, (byte)PacketType.TimeSync);
+            formatter.Serialize(ms, (float)DateTime.UtcNow.Ticks);
+            return ms.ToArray();
         }
     }
 
