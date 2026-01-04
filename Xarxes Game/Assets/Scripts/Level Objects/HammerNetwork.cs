@@ -9,7 +9,7 @@ public class HammerNetwork : NetObj
         hammer = GetComponent<RotatingHammer>();
     }
 
-    public override void SyncWithServer(float deltaTime)
+    public override void SyncWithServer(float startTime, float deltaTime)
     {
 
     }

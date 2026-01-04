@@ -266,7 +266,7 @@ public class ClientManager : MonoBehaviour
             var formatter = new BinaryFormatter();
             formatter.Serialize(ms, 1);
             formatter.Serialize(ms, (byte)PacketType.TimeSync);
-            formatter.Serialize(ms, (float)DateTime.UtcNow.Ticks);
+            formatter.Serialize(ms, (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
             return ms.ToArray();
         }
     }
@@ -341,6 +341,7 @@ public class ClientManager : MonoBehaviour
             {
                 var formatter = new BinaryFormatter();
                 deltaTime = (float)formatter.Deserialize(ms);
+                NetManager.instance.startTime = (float)formatter.Deserialize(ms);
 
                 NetManager.instance.SyncNetworkObjectsInScene();
 

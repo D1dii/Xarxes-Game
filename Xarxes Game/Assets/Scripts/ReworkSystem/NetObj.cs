@@ -24,7 +24,7 @@ public class NetObj : MonoBehaviour
         }
     }
 
-    virtual public void SyncWithServer(float deltaTime)
+    virtual public void SyncWithServer(float startTime, float deltaTime)
     {
         // Implement synchronization logic in derived classes
     }

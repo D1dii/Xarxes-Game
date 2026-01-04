@@ -31,15 +31,10 @@ public class ClientProxy
             {
                 var formatter = new BinaryFormatter();
                 welcomeTime = (float)formatter.Deserialize(ms);
-                endTime = (float)DateTime.UtcNow.Ticks;
+                endTime = (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
             }
 
-            float ticksPerSecond = (float)TimeSpan.TicksPerSecond;
-            float startSec = startTime / ticksPerSecond;
-            float welcomeSec = welcomeTime / ticksPerSecond;
-            float endSec = endTime / ticksPerSecond;
-
-            deltaTime = ((startSec + endSec) * 0.5f) - welcomeSec;
+            deltaTime = ((startTime + endTime) * 0.5f) - welcomeTime;
 
 
         }

@@ -41,6 +41,8 @@ public class NetManager : MonoBehaviour
 
     public int localNetID = 0;
 
+    public float startTime = 0f;
+
     public enum NetMode
     {
         Client,
@@ -125,6 +127,7 @@ public class NetManager : MonoBehaviour
         if (mode == NetMode.Server)
         {
             clientManager.gameObject.SetActive(false);
+            startTime = (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
             ServerProcess();
         }
         else if (mode == NetMode.Client)
@@ -134,6 +137,7 @@ public class NetManager : MonoBehaviour
         }
         else if (mode == NetMode.Host)
         {
+            startTime = (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
             ServerProcess();
             ClientProcess();
             localNetID = AssignNetID();
@@ -413,7 +417,7 @@ public class NetManager : MonoBehaviour
         int port = remoteEP.Port;
         int assignedNetID = AssignNetID();
         ClientProxy newClient = new ClientProxy(ipString, port, assignedNetID);
-        newClient.startTime = (float)DateTime.UtcNow.Ticks;
+        newClient.startTime = (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
         clientProxies.Add(newClient);
         InstantiateRemotePlayer(assignedNetID);
 
@@ -471,7 +475,7 @@ public class NetManager : MonoBehaviour
     {
         foreach (var netObj in networkObjects)
         {
-            netObj.SyncWithServer(clientManager.deltaTime);
+            netObj.SyncWithServer(startTime, clientManager.deltaTime);
         }
     }
 
@@ -527,6 +531,7 @@ public class NetManager : MonoBehaviour
             formatter.Serialize(ms, packetId);
             formatter.Serialize(ms, (byte)PacketType.DeltaTime);
             formatter.Serialize(ms, clientProxy.deltaTime);
+            formatter.Serialize(ms, startTime);
             return ms.ToArray();
         }
     }
