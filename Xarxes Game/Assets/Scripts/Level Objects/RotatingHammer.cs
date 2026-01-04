@@ -5,7 +5,6 @@ public class RotatingHammer : MonoBehaviour
     [Header("Pendulum Swing Settings")]
     public float speed = 1.5f;   
     public float limit = 75f;    
-    public bool randomStart = false; 
 
     [Header("Hammer Impact Settings")]
     public float pushForce = 500f; 
@@ -18,10 +17,6 @@ public class RotatingHammer : MonoBehaviour
     {
         hammerRb = GetComponent<Rigidbody>();
 
-        if (randomStart)
-        {
-            randomOffset = Random.Range(0f, 10f);
-        }
     }
     void FixedUpdate()
     {
