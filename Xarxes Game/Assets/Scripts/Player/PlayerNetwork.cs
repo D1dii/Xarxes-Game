@@ -22,7 +22,7 @@ public class PlayerNetwork : NetObj
     public TargetData targetTransform;
 
     public float sendDataTimer = 0f;
-    public float sendDataInterval = 0.025f; 
+    public float sendDataInterval = 0.33f; 
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void Start()
@@ -55,17 +55,28 @@ public class PlayerNetwork : NetObj
             rotation = transform.rotation
         };
 
-        int packetId = 1;
-
-        byte[] packet = BuildPlayerInputPacket(packetId, data);
+        int packetId = AcknowledgementManager.instance.AssignPacketID();
 
         if (NetManager.instance.mode == NetManager.NetMode.Client)
         {
+            byte[] packet = BuildPlayerInputPacket(packetId, data);
             NetManager.instance.clientManager.SendPacket(packet, NetManager.instance.clientManager.serverEndPoint);
+            //AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, NetManager.instance.clientManager.serverEndPoint);
         }
         else if (NetManager.instance.mode == NetManager.NetMode.Host)
         {
-            NetManager.instance.SendPlayerInputToProxies(packet);
+            SendPlayerInputToProxies(data);
+        }
+    }
+
+    public void SendPlayerInputToProxies(PlayerTransformData data)
+    {
+        foreach (var client in NetManager.instance.clientProxies)
+        {
+            int packetId = AcknowledgementManager.instance.AssignPacketID();
+            byte[] packet = BuildPlayerInputPacket(packetId, data);
+            NetManager.instance.serverManager.SendPacket(packet, client.GetEndPoint());
+            //AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, client.GetEndPoint());
         }
     }
 

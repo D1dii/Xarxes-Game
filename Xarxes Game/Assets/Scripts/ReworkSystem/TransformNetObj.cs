@@ -93,10 +93,13 @@ public class TransformNetObj : NetObj
 
     private void SendModifyObject()
     {
-        byte[] packet = BuildModifyObjectPacket();
+        
         if (NetManager.instance.mode == NetManager.NetMode.Client)
         {
+            int packetId = AcknowledgementManager.instance.AssignPacketID();
+            byte[] packet = BuildModifyObjectPacket(packetId);
             NetManager.instance.clientManager.SendPacket(packet, NetManager.instance.clientManager.serverEndPoint);
+            AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, NetManager.instance.clientManager.serverEndPoint);
         }
         else if (NetManager.instance.mode == NetManager.NetMode.Host)
         {
@@ -104,13 +107,16 @@ public class TransformNetObj : NetObj
             {
                 if (netID != client.netId)
                 {
+                    int packetId = AcknowledgementManager.instance.AssignPacketID();
+                    byte[] packet = BuildModifyObjectPacket(packetId);
                     NetManager.instance.serverSocket.SendTo(packet, client.GetEndPoint());
+                    AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, client.GetEndPoint());
                 }
             }
         }
     }
 
-    private byte[] BuildModifyObjectPacket()
+    private byte[] BuildModifyObjectPacket(int packetId)
     {
 
         if (NetManager.instance.mode == NetManager.NetMode.Host)
@@ -118,7 +124,7 @@ public class TransformNetObj : NetObj
             using (var ms = new MemoryStream())
             {
                 var formatter = new BinaryFormatter();
-                formatter.Serialize(ms, 0);
+                formatter.Serialize(ms, packetId);
                 formatter.Serialize(ms, (byte)PacketType.WorldState);
                 formatter.Serialize(ms, netID);
                 formatter.Serialize(ms, transform.position.x);
@@ -136,7 +142,7 @@ public class TransformNetObj : NetObj
             using (var ms = new MemoryStream())
             {
                 var formatter = new BinaryFormatter();
-                formatter.Serialize(ms, 0);
+                formatter.Serialize(ms, packetId);
                 formatter.Serialize(ms, (byte)PacketType.ModifyObstacle);
                 formatter.Serialize(ms, netID);
                 formatter.Serialize(ms, NetManager.instance.clientManager.localNetId);

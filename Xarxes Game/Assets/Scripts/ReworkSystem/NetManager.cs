@@ -43,6 +43,9 @@ public class NetManager : MonoBehaviour
 
     public float startTime = 0f;
 
+    public AcknowledgementManager ackManager;
+
+
     public enum NetMode
     {
         Client,
@@ -60,7 +63,8 @@ public class NetManager : MonoBehaviour
         WorldState = 4,
         ModifyObstacle = 5,
         TimeSync = 6,
-        DeltaTime = 7
+        DeltaTime = 7,
+        Acknowledgement = 8
     }
 
     public void Awake()
@@ -353,10 +357,13 @@ public class NetManager : MonoBehaviour
 
                 CreateNewClientProxy(fromAddress);
 
-                byte[] newClientPacket = BuildNewClientPacket(2, clientProxies[clientProxies.Count - 1]);
+                
                 foreach (var client in clientProxies)
                 {
+                    int packetIdForNewClient = ackManager.AssignPacketID();
+                    byte[] newClientPacket = BuildNewClientPacket(packetIdForNewClient, clientProxies[clientProxies.Count - 1]);
                     serverManager.SendPacket(newClientPacket, client.GetEndPoint());
+                    ackManager.AddPendingAcknowledgment(packetIdForNewClient, newClientPacket, client.GetEndPoint());
                 }
 
             }
@@ -375,13 +382,17 @@ public class NetManager : MonoBehaviour
                     if (client.GetEndPoint().Equals(fromAddress))
                     {
                         client.CalculateDeltaTime(inputPacket, receivedDataLength, headerSize);
-                        byte[] deltaTimePacket = BuildDeltaTimePacket(3, client);
+                        int packetIdForDeltaTime = ackManager.AssignPacketID();
+                        byte[] deltaTimePacket = BuildDeltaTimePacket(packetIdForDeltaTime, client);
                         serverManager.SendPacket(deltaTimePacket, client.GetEndPoint());
+                        ackManager.AddPendingAcknowledgment(packetIdForDeltaTime, deltaTimePacket, client.GetEndPoint());
                     }
                 }
 
 
             }
+
+            ackManager.RemovePendingAcknowledgment(packetId);
         }
         else if (mode == NetMode.Client)
         {
@@ -407,6 +418,7 @@ public class NetManager : MonoBehaviour
                 clientManager.DeltaTimeReceived(inputPacket, receivedDataLength, headerSize);
             }
 
+            ackManager.RemovePendingAcknowledgment(packetId);
         }
     }
 
@@ -438,17 +450,13 @@ public class NetManager : MonoBehaviour
             }
         }
 
-        byte[] welcomePacket = BuildWelcomePacket(1, assignedNetID, clientsForPacket);
+        int packetId = ackManager.AssignPacketID();
+        byte[] welcomePacket = BuildWelcomePacket(packetId, assignedNetID, clientsForPacket);
         serverManager.SendPacket(welcomePacket, newClient.GetEndPoint());
+        ackManager.AddPendingAcknowledgment(packetId, welcomePacket, newClient.GetEndPoint());
     }
 
-    public void SendPlayerInputToProxies(byte[] inputPacket)
-    {
-        foreach (var client in clientProxies)
-        {
-            serverManager.SendPacket(inputPacket, client.GetEndPoint());
-        }
-    }
+    
 
     public void InstantiateRemotePlayer(int netID)
     {
@@ -556,10 +564,14 @@ public class NetManager : MonoBehaviour
         }
     }
 
+    
+
     public int AssignNetID()
     {
         return nextNetID++;
     }
+
     
+
 
 }

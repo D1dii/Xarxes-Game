@@ -162,9 +162,6 @@ public class ClientManager : MonoBehaviour
                 if (NetManager.instance.cancelReceive) break;
                 Thread.Sleep(10);
             }
-
-            // pequeña espera para evitar uso excesivo de CPU
-            Thread.Sleep(10);
         }
     }
 
@@ -248,8 +245,10 @@ public class ClientManager : MonoBehaviour
                     Debug.Log($"Cliente existente: netId={existingNetId}, ip={existingIp}, port={existingPort}");
                 }
 
-                byte[] timeStampPacket = BuildTimeStampPacket();
+                int packetId = AcknowledgementManager.instance.AssignPacketID();
+                byte[] timeStampPacket = BuildTimeStampPacket(packetId);
                 SendPacket(timeStampPacket, serverEndPoint);
+                AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, timeStampPacket, serverEndPoint);
 
             }
         }
@@ -259,12 +258,12 @@ public class ClientManager : MonoBehaviour
         }
     }
 
-    public byte[] BuildTimeStampPacket()
+    public byte[] BuildTimeStampPacket(int packetId)
     {
         using (var ms = new MemoryStream())
         {
             var formatter = new BinaryFormatter();
-            formatter.Serialize(ms, 1);
+            formatter.Serialize(ms, packetId);
             formatter.Serialize(ms, (byte)PacketType.TimeSync);
             formatter.Serialize(ms, (float)DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
             return ms.ToArray();

@@ -169,8 +169,6 @@ public class ServerManager : MonoBehaviour
                 Thread.Sleep(10);
             }
 
-            // Mantener una pequeña espera para evitar uso excesivo de CPU
-            Thread.Sleep(10);
         }
     }
 

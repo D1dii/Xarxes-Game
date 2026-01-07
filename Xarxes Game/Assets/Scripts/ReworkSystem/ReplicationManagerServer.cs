@@ -74,14 +74,14 @@ public class ReplicationManagerServer
 
     public IEnumerator ResetOwnership(TransformNetObj objectModified)
     {
-       yield return new WaitForSeconds(1.5f);
+       yield return new WaitForSeconds(0.5f);
        objectModified.ownerClientId = -1;
     }
 
     public void SendObjectState(int netId, int clientNetId, Vector3 position, Quaternion rotation)
     {
-
-        byte[] packet = BuildObjectStatePacket(netId, position, rotation);
+        int packetId = AcknowledgementManager.instance.AssignPacketID();
+        byte[] packet = BuildObjectStatePacket(packetId, netId, position, rotation);
 
         foreach (var client in NetManager.instance.clientProxies)
         {
@@ -101,7 +101,8 @@ public class ReplicationManagerServer
             TransformNetObj transformNetObj = netObj.GetComponent<TransformNetObj>();
             if (transformNetObj != null)
             {
-                byte[] packet = BuildObjectStatePacket(netId, transformNetObj.transform.position, transformNetObj.transform.rotation);
+                int packetId = AcknowledgementManager.instance.AssignPacketID();
+                byte[] packet = BuildObjectStatePacket(packetId,netId, transformNetObj.transform.position, transformNetObj.transform.rotation);
                 foreach (var client in NetManager.instance.clientProxies)
                 {
                     if (clientNetId == client.netId)
@@ -113,12 +114,12 @@ public class ReplicationManagerServer
         }
     }
 
-    private byte[] BuildObjectStatePacket(int netId, Vector3 position, Quaternion rotation)
+    private byte[] BuildObjectStatePacket(int packetId, int netId, Vector3 position, Quaternion rotation)
     {
         using (var ms = new MemoryStream())
         {
             var formatter = new BinaryFormatter();
-            formatter.Serialize(ms, 0);
+            formatter.Serialize(ms, packetId);
             formatter.Serialize(ms, (byte)PacketType.WorldState);
             formatter.Serialize(ms, netId);
             formatter.Serialize(ms, position.x);

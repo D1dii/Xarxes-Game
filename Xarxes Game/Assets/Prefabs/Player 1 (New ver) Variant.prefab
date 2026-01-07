@@ -16,6 +16,14 @@ PrefabInstance:
       propertyPath: m_TagString
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 151482043622941655, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
+      propertyPath: sensitivityX
+      value: 71.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 151482043622941655, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
+      propertyPath: sensitivityY
+      value: 81.8
+      objectReference: {fileID: 0}
     - target: {fileID: 6092889653738426005, guid: 687b3ed8d2d0b5947a6c14773944a15b, type: 3}
       propertyPath: m_LocalPosition.x
       value: 86.91608
