@@ -11,17 +11,14 @@ public class TreadmillPlatform : MonoBehaviour
 
     void OnCollisionStay(Collision other)
     {
-        // Check if the object is the player (make sure your player has the "Player" tag)
         if (other.gameObject.CompareTag("Player"))
         {
             Rigidbody playerRb = other.gameObject.GetComponent<Rigidbody>();
 
             if (playerRb != null)
             {
-                // Convert local direction to world space so it rotates with the platform
                 Vector3 worldDirection = transform.TransformDirection(pushDirection);
 
-                // Apply ForceMode.Acceleration to ignore mass, making it feel snappy
                 playerRb.AddForce(worldDirection * pushForce, ForceMode.Acceleration);
             }
         }
