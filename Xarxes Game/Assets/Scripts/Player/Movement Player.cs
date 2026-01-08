@@ -275,7 +275,10 @@ public class PlayerMovementRB : MonoBehaviour
         rb.useGravity = originalGravity;
 
         rb.velocity = new Vector3(0f, rb.velocity.y, 0f);
-
+        if (DashCooldownUI.Instance != null)
+        {
+            DashCooldownUI.Instance.HandleDash(dashCooldown);
+        }
         yield return new WaitForSeconds(dashCooldown);
         canDash = true;
     }
