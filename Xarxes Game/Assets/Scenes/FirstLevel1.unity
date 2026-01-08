@@ -1227,8 +1227,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimationSyncer
   animator: {fileID: 264728786}
-  movingThreshold: 0.1
-  verticalThreshold: 0.2
+  rb: {fileID: 0}
 --- !u!1 &345341330
 GameObject:
   m_ObjectHideFlags: 0
@@ -5678,8 +5677,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAnimationSyncer
   animator: {fileID: 264728786}
-  movingThreshold: 0.1
-  verticalThreshold: 0.2
+  rb: {fileID: 0}
 --- !u!1 &1510043791
 GameObject:
   m_ObjectHideFlags: 0
