@@ -2,13 +2,15 @@ using UnityEngine;
 
 public class RestartPlayer : MonoBehaviour
 {
+    
+    public Vector3 respawnPoint; 
+    
+    private Rigidbody rb; 
 
-    public Vector3 startPos;
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        startPos = transform.position;
+        respawnPoint = transform.position;
+        rb = GetComponent<Rigidbody>();
     }
 
     public void OnTriggerEnter(Collider other)
@@ -18,8 +20,21 @@ public class RestartPlayer : MonoBehaviour
             RestartPosition();
         }
     }
+
+    public void UpdateCheckpoint(Vector3 newPosition)
+    {
+        respawnPoint = newPosition;
+    }
+
     public void RestartPosition()
     {
-        transform.position = startPos;
+        transform.position = respawnPoint;
+
+        
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector3.zero; 
+            rb.angularVelocity = Vector3.zero;
+        }
     }
 }
