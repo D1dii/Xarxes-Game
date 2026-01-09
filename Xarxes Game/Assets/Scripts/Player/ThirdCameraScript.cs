@@ -1,30 +1,48 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-public class ThirdCameraScript : MonoBehaviour
-{
-    public Transform target;
-    public float distance = 4f;
-    public float height = 2f;
-    public float sensitivityX = 120f;
-    public float sensitivityY = 120f;
-    public float minY = -30f;
-    public float maxY = 70f;
 
-    private float rotX;
-    private float rotY;
+public class CameraControllerMouse : MonoBehaviour
+{
+    [Header("Objetivos")]
+    public Transform target; // Arrastra a tu personaje aquí
+
+    [Header("Configuración")]
+    public float distance = 5f;
+    public float minDistance = 1f;
+    public float sensitivity = 0.5f; // Ajusta esto si va muy rápido o lento
+    public float smoothTime = 0.1f;
+    public Vector2 verticalLimits = new Vector2(-40f, 70f);
+    public LayerMask collisionLayers; // Capas con las que choca (Default, Ground, Walls)
+
+    // Estado interno
+    private Vector2 currentRotation;
+    private Vector2 rotationVelocity;
+    private Vector2 inputDelta;
     private PlayerInputActions inputActions;
-    private Vector2 lookInput;
 
     private void Awake()
     {
         inputActions = new PlayerInputActions();
     }
 
+    private void Start()
+    {
+        // --- ESTO ES CLAVE PARA PC ---
+        // Oculta el cursor y lo bloquea en el centro para que puedas girar infinitamente
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        // Inicializamos la rotación actual para que no pegue un salto al empezar
+        currentRotation = new Vector2(transform.eulerAngles.x, transform.eulerAngles.y);
+    }
+
     private void OnEnable()
     {
         inputActions.Player.Enable();
-        inputActions.Player.Look.performed += ctx => lookInput = ctx.ReadValue<Vector2>();
-        inputActions.Player.Look.canceled += ctx => lookInput = Vector2.zero;
+
+        // Leemos el movimiento del ratón (Delta)
+        inputActions.Player.Look.performed += ctx => inputDelta = ctx.ReadValue<Vector2>();
+        inputActions.Player.Look.canceled += ctx => inputDelta = Vector2.zero;
     }
 
     private void OnDisable()
@@ -32,16 +50,61 @@ public class ThirdCameraScript : MonoBehaviour
         inputActions.Player.Disable();
     }
 
-    void LateUpdate()
+    private void LateUpdate()
     {
-        rotY += lookInput.x * sensitivityX * Time.deltaTime;
-        rotX -= lookInput.y * sensitivityY * Time.deltaTime;
-        rotX = Mathf.Clamp(rotX, minY, maxY);
+        if (target == null) return;
 
-        Quaternion rotation = Quaternion.Euler(rotX, rotY, 0);
-        Vector3 offset = rotation * new Vector3(0, height, -distance);
+        // Desbloquear ratón con ESC (útil para pruebas)
+        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
 
-        transform.position = target.position + offset;
-        transform.LookAt(target.position + Vector3.up * 1.5f);
+        // Si pulsas clic en pantalla, volvemos a bloquear (opcional, buena práctica)
+        if (Mouse.current.leftButton.wasPressedThisFrame && Cursor.visible)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+
+        HandleRotation();
+        HandleCameraPosition();
+    }
+
+    void HandleRotation()
+    {
+        // Nota: En ratón, a veces hay que invertir la Y. Si va al revés, pon un + en vez de -
+        float targetPitch = currentRotation.x - (inputDelta.y * sensitivity);
+        float targetYaw = currentRotation.y + (inputDelta.x * sensitivity);
+
+        // Limitamos para que no dé la vuelta completa verticalmente
+        targetPitch = Mathf.Clamp(targetPitch, verticalLimits.x, verticalLimits.y);
+
+        // Suavizado
+        currentRotation.x = Mathf.SmoothDamp(currentRotation.x, targetPitch, ref rotationVelocity.x, smoothTime);
+        currentRotation.y = Mathf.SmoothDamp(currentRotation.y, targetYaw, ref rotationVelocity.y, smoothTime);
+    }
+
+    void HandleCameraPosition()
+    {
+        Quaternion rotation = Quaternion.Euler(currentRotation.x, currentRotation.y, 0);
+        Vector3 direction = rotation * -Vector3.forward;
+
+        // Pivote: Miramos al cuello/cabeza del player, no a los pies
+        Vector3 pivotPoint = target.position + Vector3.up * 1.5f;
+        float finalDistance = distance;
+
+        // Sistema anti-paredes
+        RaycastHit hit;
+        if (Physics.SphereCast(pivotPoint, 0.2f, direction, out hit, distance, collisionLayers))
+        {
+            finalDistance = hit.distance;
+        }
+
+        finalDistance = Mathf.Max(finalDistance, minDistance);
+
+        transform.position = pivotPoint + (direction * finalDistance);
+        transform.LookAt(pivotPoint);
     }
 }
