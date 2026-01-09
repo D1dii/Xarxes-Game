@@ -61,7 +61,6 @@ public class PlayerNetwork : NetObj
         {
             byte[] packet = BuildPlayerInputPacket(packetId, data);
             NetManager.instance.clientManager.SendPacket(packet, NetManager.instance.clientManager.serverEndPoint);
-            //AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, NetManager.instance.clientManager.serverEndPoint);
         }
         else if (NetManager.instance.mode == NetManager.NetMode.Host)
         {
@@ -76,7 +75,6 @@ public class PlayerNetwork : NetObj
             int packetId = AcknowledgementManager.instance.AssignPacketID();
             byte[] packet = BuildPlayerInputPacket(packetId, data);
             NetManager.instance.serverManager.SendPacket(packet, client.GetEndPoint());
-            //AcknowledgementManager.instance.AddPendingAcknowledgment(packetId, packet, client.GetEndPoint());
         }
     }
 

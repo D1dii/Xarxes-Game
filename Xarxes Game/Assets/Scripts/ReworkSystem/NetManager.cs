@@ -311,6 +311,7 @@ public class NetManager : MonoBehaviour
             if (clientManager != null)
             {
                 clientManager.WelcomeReceived(receivedBytes, receivedBytes.Length, headerSize);
+                SendAcknowledgment(packetId, remoteEP);
             }
 
             // Instanciamos jugador local
@@ -351,6 +352,8 @@ public class NetManager : MonoBehaviour
             int headerSize;
             (packetId, packetType, headerSize) = DeserializePacketIdentification(inputPacket);
 
+            
+
             if (packetType == PacketType.Hello)
             {
                 Debug.Log("Paquete Hello recibido del cliente con IP: " + fromAddress.ToString());
@@ -374,6 +377,7 @@ public class NetManager : MonoBehaviour
             else if (packetType == PacketType.ModifyObstacle)
             {
                 replicationServer.ObjectModifiedReceived(inputPacket, receivedDataLength, headerSize);
+                SendAcknowledgment(packetId, fromAddress);
             }
             else if (packetType == PacketType.TimeSync)
             {
@@ -386,13 +390,18 @@ public class NetManager : MonoBehaviour
                         byte[] deltaTimePacket = BuildDeltaTimePacket(packetIdForDeltaTime, client);
                         serverManager.SendPacket(deltaTimePacket, client.GetEndPoint());
                         ackManager.AddPendingAcknowledgment(packetIdForDeltaTime, deltaTimePacket, client.GetEndPoint());
+                        SendAcknowledgment(packetId, fromAddress);
                     }
                 }
 
 
             }
+            else if (packetType == PacketType.Acknowledgement)
+            {
+                ackManager.RemovePendingAcknowledgment(packetId);
+            }
 
-            ackManager.RemovePendingAcknowledgment(packetId);
+
         }
         else if (mode == NetMode.Client)
         {
@@ -404,6 +413,7 @@ public class NetManager : MonoBehaviour
             if (packetType == PacketType.NewClient)
             {
                 clientManager.NewClientReceived(inputPacket, receivedDataLength, headerSize);
+                SendAcknowledgment(packetId, fromAddress);
             }
             else if (packetType == PacketType.PlayerInput)
             {
@@ -416,9 +426,13 @@ public class NetManager : MonoBehaviour
             else if (packetType == PacketType.DeltaTime)
             {
                 clientManager.DeltaTimeReceived(inputPacket, receivedDataLength, headerSize);
+                SendAcknowledgment(packetId, fromAddress);
+            }
+            else if (packetType == PacketType.Acknowledgement)
+            {
+                ackManager.RemovePendingAcknowledgment(packetId);
             }
 
-            ackManager.RemovePendingAcknowledgment(packetId);
         }
     }
 
@@ -541,6 +555,30 @@ public class NetManager : MonoBehaviour
             formatter.Serialize(ms, clientProxy.deltaTime);
             formatter.Serialize(ms, startTime);
             return ms.ToArray();
+        }
+    }
+
+    public byte[] BuildAcknowledgementPacket(int packetId)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, packetId);
+            formatter.Serialize(ms, (byte)PacketType.Acknowledgement);
+            return ms.ToArray();
+        }
+    }
+
+    public void SendAcknowledgment(int packetId, EndPoint address)
+    {
+        byte[] ackPacket = BuildAcknowledgementPacket(packetId);
+        if (mode == NetMode.Server || mode == NetMode.Host)
+        {
+            serverManager.SendPacket(ackPacket, address);
+        }
+        else if (mode == NetMode.Client)
+        {
+            clientManager.SendPacket(ackPacket, address);
         }
     }
 

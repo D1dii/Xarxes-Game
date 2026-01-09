@@ -29,6 +29,8 @@ public class TransformNetObj : NetObj
     {
         targetPosition = transform.position;
         targetRotation = transform.rotation;
+        currentPosition = transform.position;
+        currentRotation = transform.rotation;
         isInitialized = false;
     }
 
