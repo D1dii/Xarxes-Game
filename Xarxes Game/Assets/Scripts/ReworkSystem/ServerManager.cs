@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 using UnityEngine;
 
@@ -214,6 +216,80 @@ public class ServerManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogWarning($"Error enviando paquete: {ex.Message}");
+        }
+    }
+
+    public void PlayerInputReceived(byte[] inputPacket, int receivedDataLength, int headerSize)
+    {
+        if (inputPacket == null || receivedDataLength == 0) return;
+        try
+        {
+            using (var ms = new MemoryStream(inputPacket, headerSize, receivedDataLength - headerSize))
+            {
+                var formatter = new BinaryFormatter();
+                int netId = (int)formatter.Deserialize(ms);
+                Vector3 position;
+                position.x = (float)formatter.Deserialize(ms);
+                position.y = (float)formatter.Deserialize(ms);
+                position.z = (float)formatter.Deserialize(ms);
+                Quaternion rotation;
+                rotation.x = (float)formatter.Deserialize(ms);
+                rotation.y = (float)formatter.Deserialize(ms);
+                rotation.z = (float)formatter.Deserialize(ms);
+                rotation.w = (float)formatter.Deserialize(ms);
+
+                GameObject remotePlayer = NetManager.instance.GetNetworkObjectById(netId);
+                if (remotePlayer != null)
+                {
+                    remotePlayer.GetComponent<PlayerNetwork>().ReceiveData(position, rotation);
+                }
+
+                SendPlayerInputToClients(position, rotation, netId);
+
+
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError("Error al deserializar PlayerInputPacket: " + ex);
+        }
+    }
+
+    public void SendPlayerInputToClients(Vector3 position, Quaternion rotation, int netId)
+    {
+        PlayerTransformData data = new PlayerTransformData
+        {
+            position = position,
+            rotation = rotation
+        };
+        
+        foreach (var client in NetManager.instance.clientProxies)
+        {
+            if (client.netId != netId)
+            {
+                int packetId = AcknowledgementManager.instance.AssignPacketID();
+                byte[] packet = BuildPlayerInputPacketForCliets(packetId, data, netId);
+                NetManager.instance.serverSocket.SendTo(packet, client.GetEndPoint());
+            }
+        }
+    }
+
+    public byte[] BuildPlayerInputPacketForCliets(int packetId, PlayerTransformData data, int netId)
+    {
+        using (var ms = new MemoryStream())
+        {
+            var formatter = new BinaryFormatter();
+            formatter.Serialize(ms, packetId);
+            formatter.Serialize(ms, (byte)NetManager.PacketType.PlayerInput);
+            formatter.Serialize(ms, netId);
+            formatter.Serialize(ms, data.position.x);
+            formatter.Serialize(ms, data.position.y);
+            formatter.Serialize(ms, data.position.z);
+            formatter.Serialize(ms, data.rotation.x);
+            formatter.Serialize(ms, data.rotation.y);
+            formatter.Serialize(ms, data.rotation.z);
+            formatter.Serialize(ms, data.rotation.w);
+            return ms.ToArray();
         }
     }
 }

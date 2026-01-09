@@ -372,7 +372,7 @@ public class NetManager : MonoBehaviour
             }
             else if (packetType == PacketType.PlayerInput)
             {
-                clientManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
+                serverManager.PlayerInputReceived(inputPacket, receivedDataLength, headerSize);
             }
             else if (packetType == PacketType.ModifyObstacle)
             {
