@@ -27159,6 +27159,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: InteractuableCube
       objectReference: {fileID: 0}
+    - target: {fileID: 8251212743906960110, guid: 75c3cedd5c3cbe542ae147b4b3a99c3c, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
